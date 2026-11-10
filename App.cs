@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
@@ -33,8 +34,7 @@ public sealed class App : IDisposable
     private int _queueFamily = -1;
     private Queue _queue;
     private VkExtent2D _extent;
-    private VkPipeline _pipeline;
-    private VkPipelineLayout _pipelineLayout;
+    private Pipeline _pipeline;
     private VkSurfaceKHR _surface;
     private VmaAllocator _allocator;
     private VkImage[] _swapchainImages;
@@ -61,6 +61,8 @@ public sealed class App : IDisposable
     private VkDescriptorSetLayout _descriptorSetLayout;
     private VkDescriptorPool _descriptorPool;
     private VkDescriptorSet[] _descriptorSets;
+
+    private PipelineManager _pipelineManager;
 
     public App()
     {
@@ -158,9 +160,9 @@ public sealed class App : IDisposable
         VulkanHelpers.AddMandatoryIfSupportedDeviceExtensions(deviceExtensions, _physicalDevice);
 
         var priority = 1.0f;
-        
+
         var vulkan12Features = new VkPhysicalDeviceVulkan12Features
-            { ShaderSampledImageArrayNonUniformIndexing = true, DescriptorBindingPartiallyBound = true};
+            { ShaderSampledImageArrayNonUniformIndexing = true, DescriptorBindingPartiallyBound = true };
         var vulkan13Features = new VkPhysicalDeviceVulkan13Features
             { DynamicRendering = true, Next = &vulkan12Features };
         var physicalFeatures = new VkPhysicalDeviceFeatures2()
@@ -184,6 +186,8 @@ public sealed class App : IDisposable
         );
 
         _queue = _device.GetQueue(_queueFamily, 0);
+
+        _pipelineManager = new PipelineManager(_device);
 
         CreateSwapchain();
 
@@ -218,123 +222,7 @@ public sealed class App : IDisposable
 
         CreateDescriptorSet();
 
-        using var compiler = ShaderC.CreateCompiler();
-        using var options = ShaderC.CreateCompilerOptions();
-
-        VkShaderModule CompileShader(ReadOnlySpan<byte> glsl, ShaderKind kind)
-        {
-            using var spirv = compiler.Compile(glsl, kind, "shader"u8, "main"u8, options);
-            return ShaderModuleExtensions.FromSpirv(
-                _device,
-                new ReadOnlySpan<byte>(spirv.GetBytes(), (int)spirv.GetLength()),
-                null
-            );
-        }
-
-        using var shaderStages = new ShaderStages(
-            _device,
-            [
-                Presets.ShaderStage.Vertex(
-                    CompileShader(
-                        LoadShader("mesh.vert"),
-                        ShaderKind.VertexShader
-                    )
-                ),
-                Presets.ShaderStage.Fragment(
-                    CompileShader(
-                        LoadShader("line.frag"),
-                        ShaderKind.FragmentShader
-                    )
-                )
-            ],
-            null
-        );
-
-        var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
-
-        var viewportState = new VkPipelineViewportStateCreateInfo
-        {
-            ViewportCount = 1,
-            ScissorCount = 1,
-        };
-
-        VkFormat format = _swapchainFormat;
-
-        var rendering = new VkPipelineRenderingCreateInfo
-        {
-            ColorAttachmentCount = 1,
-            ColorAttachmentFormats = &format,
-            DepthAttachmentFormat = VkFormat.D32SFloat
-        };
-
-        Span<VkDynamicState> dynamicStates = [VkDynamicState.Viewport, VkDynamicState.Scissor];
-
-        ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
-        [
-            new()
-            {
-                Offset = ByteSize.Zero,
-                Size = ByteSize.Of<float4x4>(),
-                StageFlags = VkShaderStageFlags.VertexBit
-            },
-            new()
-            {
-                Offset = ByteSize.Of<float4x4>(),
-                Size = ByteSize.Of<uint>(),
-                StageFlags = VkShaderStageFlags.FragmentBit
-            }
-        ];
-
-        var depthStencil = new VkPipelineDepthStencilStateCreateInfo
-        {
-            DepthTestEnable = true,
-            DepthWriteEnable = true,
-            DepthCompareOp = VkCompareOp.Less,
-            DepthBoundsTestEnable = false,
-            StencilTestEnable = false
-        };
-
-        var multisampleState = new VkPipelineMultisampleStateCreateInfo
-        {
-            RasterizationSamples = _msaaSamples
-        };
-
-        var rasterizationState = new VkPipelineRasterizationStateCreateInfo
-        {
-            PolygonMode = VkPolygonMode.Line,
-            CullMode = VkCullModeFlags.BackBit,
-            LineWidth = 1.0f
-        };
-
-        fixed (VkDynamicState* dynamicStatesPtr = dynamicStates)
-        {
-            var dynamicState = new VkPipelineDynamicStateCreateInfo
-            {
-                DynamicStateCount = dynamicStates.Length,
-                DynamicStates = dynamicStatesPtr
-            };
-
-            _pipelineLayout = _device.CreatePipelineLayout([_descriptorSetLayout], pushConstantRanges, null);
-            _pipeline = _device.CreateGraphicsPipeline(
-                VkPipelineCache.NullHandle,
-                new VkGraphicsPipelineCreateInfo
-                {
-                    Next = &rendering,
-                    StageCount = shaderStages.Count,
-                    Stages = shaderStages,
-                    VertexInputState = vertexInput,
-                    InputAssemblyState = Presets.InputAssembly.TriangleList,
-                    ViewportState = &viewportState,
-                    RasterizationState = &rasterizationState,
-                    MultisampleState = &multisampleState,
-                    ColorBlendState = Presets.BlendState.BlendNone,
-                    Layout = _pipelineLayout,
-                    DynamicState = &dynamicState,
-                    DepthStencilState = &depthStencil
-                },
-                null
-            );
-        }
+        CreatePipeline();
     }
 
     public unsafe void Run()
@@ -465,8 +353,8 @@ public sealed class App : IDisposable
                 }
             );
 
-            commandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline);
-            commandBuffer.BindDescriptorSets(VkPipelineBindPoint.Graphics, _pipelineLayout, 0, _descriptorSets, null);
+            commandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
+            commandBuffer.BindDescriptorSets(VkPipelineBindPoint.Graphics, _pipeline.Layout, 0, _descriptorSets, null);
 
             commandBuffer.SetViewport(0, [
                 new VkViewport
@@ -484,13 +372,13 @@ public sealed class App : IDisposable
             var viewProj = _camera.GetView() * _camera.GetProjection();
             for (var i = 0; i < _meshes.Length; i++)
             {
-                commandBuffer.PushConstants(_pipelineLayout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
+                commandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
                     _transforms[i].GetModelMatrix() * viewProj);
-                commandBuffer.PushConstants(_pipelineLayout, VkShaderStageFlags.FragmentBit, ByteSize.Of<float4x4>(),
+                commandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit, ByteSize.Of<float4x4>(),
                     0);
 
                 commandBuffer.BindVertexBuffers(0, [_gpuMeshes[i].VertexBuffer], [new ByteSize64(0)]);
-                commandBuffer.BindIndexBuffer(_gpuMeshes[i].IndexBuffer, new ByteSize64(0), VkIndexType.UInt16);
+                commandBuffer.BindIndexBuffer(_gpuMeshes[i].IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
                 commandBuffer.DrawIndexed(_gpuMeshes[i].IndexCount, 1, 0, 0, 0);
             }
 
@@ -559,8 +447,7 @@ public sealed class App : IDisposable
         foreach (var semaphore in renderFinished)
             _device.DestroySemaphore(semaphore, null);
         _device.DestroyCommandPool(_commandPool, null);
-        _device.DestroyPipeline(_pipeline, null);
-        _device.DestroyPipelineLayout(_pipelineLayout, null);
+        _pipelineManager.Dispose();
         foreach (var imageView in _swapchainImageViews)
             _device.DestroyImageView(imageView, null);
         Array.Clear(_swapchainImageViews);
@@ -571,6 +458,103 @@ public sealed class App : IDisposable
         _device.DestroySwapchainKHR(_swapchain, null);
         _device.DestroyVmaAllocator(_allocator);
         _instance.DestroySurfaceKHR(_surface, null);
+    }
+
+    private unsafe void CreatePipeline()
+    {
+        using var compiler = ShaderC.CreateCompiler();
+        using var options = ShaderC.CreateCompilerOptions();
+        
+        VkShaderModule CompileShader(ReadOnlySpan<byte> glsl, ShaderKind kind)
+        {
+            using var spirv = compiler.Compile(glsl, kind, "shader"u8, "main"u8, options);
+            return ShaderModuleExtensions.FromSpirv(
+                _device,
+                new ReadOnlySpan<byte>(spirv.GetBytes(), (int)spirv.GetLength()),
+                null
+            );
+        }
+
+        using var shaderStages = new ShaderStages(
+            _device,
+            [
+                Presets.ShaderStage.Vertex(
+                    CompileShader(
+                        LoadShader("mesh.vert"),
+                        ShaderKind.VertexShader
+                    )
+                ),
+                Presets.ShaderStage.Fragment(
+                    CompileShader(
+                        LoadShader("mesh.frag"),
+                        ShaderKind.FragmentShader
+                    )
+                )
+            ],
+            null
+        );
+
+        var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
+
+        VkFormat format = _swapchainFormat;
+
+        var rendering = new VkPipelineRenderingCreateInfo
+        {
+            ColorAttachmentCount = 1,
+            ColorAttachmentFormats = &format,
+            DepthAttachmentFormat = VkFormat.D32SFloat
+        };
+
+        ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
+        [
+            new()
+            {
+                Offset = ByteSize.Zero,
+                Size = ByteSize.Of<float4x4>(),
+                StageFlags = VkShaderStageFlags.VertexBit
+            },
+            new()
+            {
+                Offset = ByteSize.Of<float4x4>(),
+                Size = ByteSize.Of<uint>(),
+                StageFlags = VkShaderStageFlags.FragmentBit
+            }
+        ];
+
+        var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+        {
+            DepthTestEnable = true,
+            DepthWriteEnable = true,
+            DepthCompareOp = VkCompareOp.Less,
+            DepthBoundsTestEnable = false,
+            StencilTestEnable = false
+        };
+
+        var multisampleState = new VkPipelineMultisampleStateCreateInfo
+        {
+            RasterizationSamples = _msaaSamples
+        };
+
+        var lineRasterizationState = new VkPipelineRasterizationStateCreateInfo
+        {
+            PolygonMode = VkPolygonMode.Line,
+            CullMode = VkCullModeFlags.BackBit,
+            LineWidth = 1.0f
+        };
+
+        var pipelineDescription = new PipelineDescription
+        {
+            RenderingCreateInfo = rendering,
+            ShaderStages = shaderStages,
+            VertexInput = vertexInput,
+            RasterizationStateCreateInfo = lineRasterizationState,
+            MultisampleStateCreateInfo = multisampleState,
+            DepthStencilStateCreateInfo = depthStencil,
+            DescriptorSetLayouts = [_descriptorSetLayout],
+            PushConstantRanges = pushConstantRanges.ToArray().ToImmutableArray()
+        };
+
+        _pipeline = _pipelineManager.GetOrCreate(pipelineDescription);
     }
 
     private void CreateObjects()
@@ -650,10 +634,11 @@ public sealed class App : IDisposable
             _transforms[1].Position = new float3(0.0f, 5.0f, -1.0f);
             _gpuMeshes[1] = new GpuMesh(_allocator, _meshes[1]);
         }
-        
+
         // mesh 3
         {
-            _meshes[2] = CubeSphere.CreateMesh(2);
+            CubeSphere.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+            _meshes[2] = CubeSphere.CreateMesh(3, 2.0f);
             _transforms[2] = Transform.Identity;
             _transforms[2].Position = new float3(0.0f, 1.0f, 0.0f);
             _gpuMeshes[2] = new GpuMesh(_allocator, _meshes[2]);
@@ -846,7 +831,7 @@ public sealed class App : IDisposable
                     BindingCount = bindings.Length,
                     Bindings = bindingsPtr
                 };
-                
+
                 _descriptorSetLayout = _device.CreateDescriptorSetLayout(layoutInfo, null);
             }
         }

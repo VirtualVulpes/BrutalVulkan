@@ -4,63 +4,112 @@ namespace BrutalVulkan;
 
 public static class CubeSphere
 {
-    public static Mesh CreateMesh(int subdivisions)
-    {
-        var startX = -0.5f;
-        var startY = -0.5f;
+    private static readonly FastNoiseLite Noise = new();
 
-        float3[] startPositions =
+    public static void SetNoiseType(FastNoiseLite.NoiseType type)
+    {
+        Noise.SetNoiseType(type);
+    }
+    
+    private static float SampleNoise(float3 position)
+    {
+        float frequency = 0.5f;
+        float amplitude = 1.0f;
+
+        float total = 0.0f;
+        float maxValue = 0.0f;
+
+        for (int i = 0; i < 5; i++)
+        {
+            Noise.SetFrequency(frequency);
+
+            total += Noise.GetNoise(position.X, position.Y, position.Z) * amplitude;
+            maxValue += amplitude;
+
+            frequency *= 2.0f;
+            amplitude *= 0.5f;
+        }
+
+        return total / maxValue;
+    }
+    
+    public static Mesh CreateMesh(int subdivisionLevel, float radius = 1.0f)
+    {
+        float3[] origins =
         [
-            new float3(-0.5f, -0.5f, 0.5f),
-            new float3(-0.5f, -0.5f, 0.5f),
-            new float3(-0.5f, -0.5f, 0.5f),
-            new float3(-0.5f, -0.5f, 0.5f),
-            new float3(-0.5f, -0.5f, 0.5f),
-            new float3(-0.5f, -0.5f, 0.5f),
+            new(-0.5f, -0.5f, 0.5f), // front
+            new(0.5f, -0.5f, 0.5f), // right
+            new(0.5f, -0.5f, -0.5f), // back
+            new(-0.5f, -0.5f, -0.5f), // left
+            new(-0.5f, 0.5f, 0.5f), // top
+            new(-0.5f, -0.5f, -0.5f) // bottom
         ];
 
-        var verticesPerSide = (1 << subdivisions) + 1;
-        var vertices = new Vertex[verticesPerSide * verticesPerSide * 6];
+        float3[] uDirections =
+        [
+            new(1.0f, 0.0f, 0.0f), // front
+            new(0.0f, 0.0f, -1.0f), // right
+            new(-1.0f, 0.0f, 0.0f), // back
+            new(0.0f, 0.0f, 1.0f), // left
+            new(1.0f, 0.0f, 0.0f), // top
+            new(1.0f, 0.0f, 0.0f) // bottom
+        ];
+
+        float3[] vDirections =
+        [
+            new(0.0f, 1.0f, 0.0f), // front
+            new(0.0f, 1.0f, 0.0f), // right
+            new(0.0f, 1.0f, 0.0f), // back
+            new(0.0f, 1.0f, 0.0f), // left
+            new(0.0f, 0.0f, -1.0f), // top
+            new(0.0f, 0.0f, 1.0f) // bottom
+        ];
+
+        var verticesPerSide = (1 << subdivisionLevel) + 1;
+        var verticesPerFace = verticesPerSide * verticesPerSide;
+        var vertices = new Vertex[verticesPerFace * 6];
 
         var squaresPerSide = verticesPerSide - 1;
 
-        var numIndices = squaresPerSide * squaresPerSide * 6;
-        var indices = new UInt16[numIndices];
-        
-        int[] baseIndices = [0, 1, 3, 3, 2, 0];
-        int[] yMask = [0, 0, 1, 1, 1, 0];
+        var indicesPerFace = squaresPerSide * squaresPerSide * 6;
+        var indices = new UInt32[indicesPerFace * 6];
 
-        for (int i = 0; i < 6; i++)
+        int[] baseIndices = [0, 1, verticesPerSide + 1, verticesPerSide + 1, verticesPerSide, 0];
+
+        for (int f = 0; f < 6; f++)
         {
-            baseIndices[i] += yMask[i] * (verticesPerSide - 2);
-        }
-        
-        for (int y = 0; y < verticesPerSide; y++)
-        {
-            var yPos = startY + ((float)y / (verticesPerSide - 1));
-            for (int x = 0; x < verticesPerSide; x++)
+            for (int v = 0; v < verticesPerSide; v++)
             {
-                var xPos = startX + ((float)x / (verticesPerSide - 1));
+                var vOffset = (float)v / (verticesPerSide - 1);
 
-                var vertex = new Vertex
+                for (int u = 0; u < verticesPerSide; u++)
                 {
-                    Position = new float3(xPos, yPos, 0.0f),
-                    Normal = float3.Zero,
-                    Uv = float2.Zero
-                };
+                    var uOffset = (float)u / (verticesPerSide - 1);
 
-                vertices[x + y * verticesPerSide] = vertex;
+                    var direction =
+                        float3.NormalizeOrZero(origins[f] + uOffset * uDirections[f] + vOffset * vDirections[f]);
+                    
+                    vertices[u + v * verticesPerSide + f * verticesPerFace] = new Vertex
+                    {
+                        Position = direction * (radius + SampleNoise(direction) * 0.2f),
+                        Normal = direction,
+                        Uv = new float2(uOffset, 1.0f - vOffset)
+                    };
+                }
             }
         }
-        
-        for (int y = 0; y < squaresPerSide; y++)
+
+        for (int f = 0; f < 6; f++)
         {
-            for (int x = 0; x < squaresPerSide; x++)
+            for (int v = 0; v < squaresPerSide; v++)
             {
-                for (int i = 0; i < 6; i++)
+                for (int u = 0; u < squaresPerSide; u++)
                 {
-                    indices[i + x * 6 + y * 6 * squaresPerSide] =
-                        (ushort)(baseIndices[i] + x + y * verticesPerSide);
+                    for (int i = 0; i < 6; i++)
+                    {
+                        indices[i + u * 6 + v * 6 * squaresPerSide + f * indicesPerFace] =
+                            (uint)(baseIndices[i] + u + v * verticesPerSide + f * verticesPerFace);
+                    }
                 }
             }
         }

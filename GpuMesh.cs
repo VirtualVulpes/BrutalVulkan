@@ -8,7 +8,7 @@ public sealed class GpuMesh : IDisposable
 {
     private readonly VmaAllocator _allocator;
     
-    public UInt16 IndexCount { get; }
+    public int IndexCount { get; }
 
     private VkBuffer _vertexBuffer;
     public VkBuffer VertexBuffer => _vertexBuffer;
@@ -49,10 +49,10 @@ public sealed class GpuMesh : IDisposable
             out _indexAllocation,
             out var indexAllocationInfo
         );
-        mesh.Indices.CopyTo(new Span<UInt16>((void*)indexAllocationInfo.PMappedData, mesh.Indices.Length));
+        mesh.Indices.CopyTo(new Span<UInt32>((void*)indexAllocationInfo.PMappedData, mesh.Indices.Length));
         _allocator.FlushAllocation(_indexAllocation, ByteSize.Zero, indicesSize);
 
-        IndexCount = (UInt16)mesh.Indices.Length;
+        IndexCount = mesh.Indices.Length;
     }
 
     public void Dispose()
