@@ -464,7 +464,7 @@ public sealed class App : IDisposable
     {
         using var compiler = ShaderC.CreateCompiler();
         using var options = ShaderC.CreateCompilerOptions();
-        
+
         VkShaderModule CompileShader(ReadOnlySpan<byte> glsl, ShaderKind kind)
         {
             using var spirv = compiler.Compile(glsl, kind, "shader"u8, "main"u8, options);
@@ -475,86 +475,177 @@ public sealed class App : IDisposable
             );
         }
 
-        using var shaderStages = new ShaderStages(
-            _device,
+        // Pipeline 1
+        {
+            using var shaderStages = new ShaderStages(
+                _device,
+                [
+                    Presets.ShaderStage.Vertex(
+                        CompileShader(
+                            LoadShader("mesh.vert"),
+                            ShaderKind.VertexShader
+                        )
+                    ),
+                    Presets.ShaderStage.Fragment(
+                        CompileShader(
+                            LoadShader("mesh.frag"),
+                            ShaderKind.FragmentShader
+                        )
+                    )
+                ],
+                null
+            );
+
+            var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
+
+            VkFormat format = _swapchainFormat;
+
+            var rendering = new VkPipelineRenderingCreateInfo
+            {
+                ColorAttachmentCount = 1,
+                ColorAttachmentFormats = &format,
+                DepthAttachmentFormat = VkFormat.D32SFloat
+            };
+
+            ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
             [
-                Presets.ShaderStage.Vertex(
-                    CompileShader(
-                        LoadShader("mesh.vert"),
-                        ShaderKind.VertexShader
-                    )
-                ),
-                Presets.ShaderStage.Fragment(
-                    CompileShader(
-                        LoadShader("mesh.frag"),
-                        ShaderKind.FragmentShader
-                    )
-                )
-            ],
-            null
-        );
+                new()
+                {
+                    Offset = ByteSize.Zero,
+                    Size = ByteSize.Of<float4x4>(),
+                    StageFlags = VkShaderStageFlags.VertexBit
+                },
+                new()
+                {
+                    Offset = ByteSize.Of<float4x4>(),
+                    Size = ByteSize.Of<uint>(),
+                    StageFlags = VkShaderStageFlags.FragmentBit
+                }
+            ];
 
-        var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
-
-        VkFormat format = _swapchainFormat;
-
-        var rendering = new VkPipelineRenderingCreateInfo
-        {
-            ColorAttachmentCount = 1,
-            ColorAttachmentFormats = &format,
-            DepthAttachmentFormat = VkFormat.D32SFloat
-        };
-
-        ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
-        [
-            new()
+            var depthStencil = new VkPipelineDepthStencilStateCreateInfo
             {
-                Offset = ByteSize.Zero,
-                Size = ByteSize.Of<float4x4>(),
-                StageFlags = VkShaderStageFlags.VertexBit
-            },
-            new()
+                DepthTestEnable = true,
+                DepthWriteEnable = true,
+                DepthCompareOp = VkCompareOp.Less,
+                DepthBoundsTestEnable = false,
+                StencilTestEnable = false
+            };
+
+            var multisampleState = new VkPipelineMultisampleStateCreateInfo
             {
-                Offset = ByteSize.Of<float4x4>(),
-                Size = ByteSize.Of<uint>(),
-                StageFlags = VkShaderStageFlags.FragmentBit
-            }
-        ];
+                RasterizationSamples = _msaaSamples
+            };
 
-        var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+            var lineRasterizationState = new VkPipelineRasterizationStateCreateInfo
+            {
+                PolygonMode = VkPolygonMode.Line,
+                CullMode = VkCullModeFlags.BackBit,
+                LineWidth = 1.0f
+            };
+
+            var pipelineDescription = new PipelineDescription
+            {
+                Id = "Opaque",
+                RenderingCreateInfo = rendering,
+                ShaderStages = shaderStages,
+                VertexInput = vertexInput,
+                RasterizationStateCreateInfo = lineRasterizationState,
+                MultisampleStateCreateInfo = multisampleState,
+                DepthStencilStateCreateInfo = depthStencil,
+                DescriptorSetLayouts = [_descriptorSetLayout],
+                PushConstantRanges = pushConstantRanges.ToArray().ToImmutableArray()
+            };
+
+            _pipelineManager.Create(pipelineDescription);
+        }
+
+        // Pipeline 2
         {
-            DepthTestEnable = true,
-            DepthWriteEnable = true,
-            DepthCompareOp = VkCompareOp.Less,
-            DepthBoundsTestEnable = false,
-            StencilTestEnable = false
-        };
+            using var shaderStages = new ShaderStages(
+                _device,
+                [
+                    Presets.ShaderStage.Vertex(
+                        CompileShader(
+                            LoadShader("mesh.vert"),
+                            ShaderKind.VertexShader
+                        )
+                    ),
+                    Presets.ShaderStage.Fragment(
+                        CompileShader(
+                            LoadShader("line.frag"),
+                            ShaderKind.FragmentShader
+                        )
+                    )
+                ],
+                null
+            );
 
-        var multisampleState = new VkPipelineMultisampleStateCreateInfo
-        {
-            RasterizationSamples = _msaaSamples
-        };
+            var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
 
-        var lineRasterizationState = new VkPipelineRasterizationStateCreateInfo
-        {
-            PolygonMode = VkPolygonMode.Line,
-            CullMode = VkCullModeFlags.BackBit,
-            LineWidth = 1.0f
-        };
+            VkFormat format = _swapchainFormat;
 
-        var pipelineDescription = new PipelineDescription
-        {
-            RenderingCreateInfo = rendering,
-            ShaderStages = shaderStages,
-            VertexInput = vertexInput,
-            RasterizationStateCreateInfo = lineRasterizationState,
-            MultisampleStateCreateInfo = multisampleState,
-            DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorSetLayout],
-            PushConstantRanges = pushConstantRanges.ToArray().ToImmutableArray()
-        };
+            var rendering = new VkPipelineRenderingCreateInfo
+            {
+                ColorAttachmentCount = 1,
+                ColorAttachmentFormats = &format,
+                DepthAttachmentFormat = VkFormat.D32SFloat
+            };
 
-        _pipeline = _pipelineManager.GetOrCreate(pipelineDescription);
+            ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
+            [
+                new()
+                {
+                    Offset = ByteSize.Zero,
+                    Size = ByteSize.Of<float4x4>(),
+                    StageFlags = VkShaderStageFlags.VertexBit
+                },
+                new()
+                {
+                    Offset = ByteSize.Of<float4x4>(),
+                    Size = ByteSize.Of<uint>(),
+                    StageFlags = VkShaderStageFlags.FragmentBit
+                }
+            ];
+
+            var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+            {
+                DepthTestEnable = true,
+                DepthWriteEnable = true,
+                DepthCompareOp = VkCompareOp.Less,
+                DepthBoundsTestEnable = false,
+                StencilTestEnable = false
+            };
+
+            var multisampleState = new VkPipelineMultisampleStateCreateInfo
+            {
+                RasterizationSamples = _msaaSamples
+            };
+
+            var lineRasterizationState = new VkPipelineRasterizationStateCreateInfo
+            {
+                PolygonMode = VkPolygonMode.Line,
+                CullMode = VkCullModeFlags.BackBit,
+                LineWidth = 1.0f
+            };
+
+            var pipelineDescription = new PipelineDescription
+            {
+                Id = "Line",
+                RenderingCreateInfo = rendering,
+                ShaderStages = shaderStages,
+                VertexInput = vertexInput,
+                RasterizationStateCreateInfo = lineRasterizationState,
+                MultisampleStateCreateInfo = multisampleState,
+                DepthStencilStateCreateInfo = depthStencil,
+                DescriptorSetLayouts = [_descriptorSetLayout],
+                PushConstantRanges = pushConstantRanges.ToArray().ToImmutableArray()
+            };
+
+            _pipelineManager.Create(pipelineDescription);
+        }
+
+        _pipeline = _pipelineManager.Get("Line");
     }
 
     private void CreateObjects()
