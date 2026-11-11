@@ -1,13 +1,10 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Threading.Channels;
 using Brutal;
 using Brutal.GlfwApi;
-using Brutal.Memory;
 using Brutal.Numerics;
 using Brutal.ShaderCApi;
-using Brutal.StbApi;
 using Brutal.Strings;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
@@ -226,10 +223,10 @@ public sealed class App : IDisposable
         CreateTextureSampler();
 
         var commandBuffer = BeginSingleTimeCommands();
-        _textureManager.CreateTexture("brick.jpg", ref commandBuffer, ref _allocator);
-        UpdateTextureDescriptor(_textureManager.Get("brick.jpg"));
-        _textureManager.CreateTexture("texture.jpg", ref commandBuffer, ref _allocator);
-        UpdateTextureDescriptor(_textureManager.Get("texture.jpg"));
+        _textureManager.CreateTexture("brick.ktx2", ref commandBuffer, ref _allocator);
+        UpdateTextureDescriptor(_textureManager.Get("brick"));
+        _textureManager.CreateTexture("texture.ktx2", ref commandBuffer, ref _allocator);
+        UpdateTextureDescriptor(_textureManager.Get("texture"));
         EndSingleTimeCommands(ref commandBuffer);
         _textureManager.ClearStagingBuffers();
 
@@ -694,7 +691,7 @@ public sealed class App : IDisposable
             };
             _materials[meshIndex] = new Material
             {
-                TextureDescriptorIndex = _textureManager.Get("brick.jpg").DescriptorIndex
+                TextureDescriptorIndex = _textureManager.Get("brick").DescriptorIndex
             };
             _gpuMeshes[meshIndex] = new GpuMesh(_allocator, _meshes[0]);
         }
@@ -748,7 +745,7 @@ public sealed class App : IDisposable
             _transforms[meshIndex].Position = new float3(0.0f, 5.0f, -1.0f);
             _materials[meshIndex] = new Material
             {
-                TextureDescriptorIndex = _textureManager.Get("texture.jpg").DescriptorIndex
+                TextureDescriptorIndex = _textureManager.Get("texture").DescriptorIndex
             };
             _gpuMeshes[meshIndex] = new GpuMesh(_allocator, _meshes[1]);
         }
@@ -756,14 +753,14 @@ public sealed class App : IDisposable
         // mesh 3
         {
             var meshIndex = 2;
-            
+
             CubeSphere.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
             _meshes[meshIndex] = CubeSphere.CreateMesh(3, 2.0f);
             _transforms[meshIndex] = Transform.Identity;
             _transforms[meshIndex].Position = new float3(0.0f, 1.0f, 0.0f);
             _materials[meshIndex] = new Material
             {
-                TextureDescriptorIndex = _textureManager.Get("texture.jpg").DescriptorIndex
+                TextureDescriptorIndex = _textureManager.Get("texture").DescriptorIndex
             };
             _gpuMeshes[meshIndex] = new GpuMesh(_allocator, _meshes[2]);
         }
@@ -889,7 +886,9 @@ public sealed class App : IDisposable
         VkAccessFlags srcAccess,
         VkAccessFlags dstAccess,
         VkImageAspectFlags imageAspectFlags,
-        CommandBuffer commandBuffer
+        CommandBuffer commandBuffer,
+        int mipLevels = 1,
+        int baseMipLevel = 0
     )
     {
         commandBuffer.PipelineBarrier(
@@ -912,9 +911,9 @@ public sealed class App : IDisposable
                     {
                         AspectMask = imageAspectFlags,
                         LayerCount = 1,
-                        LevelCount = 1,
+                        LevelCount = mipLevels,
                         BaseArrayLayer = 0,
-                        BaseMipLevel = 0
+                        BaseMipLevel = baseMipLevel
                     }
                 }
             ]
@@ -1120,7 +1119,7 @@ public sealed class App : IDisposable
             UnnormalizedCoordinates = false,
             MipLodBias = 0.0f,
             MinLod = 0.0f,
-            MaxLod = 0.0f
+            MaxLod = 1000.0f
         };
 
         _textureSampler = _device.CreateSampler(samplerInfo, null);
