@@ -47,14 +47,13 @@ public sealed class App : IDisposable
     private ImageEx _colorImage;
     private ImageViewEx _colorImageView;
 
-    private ImageEx _textureImage;
-    private ImageViewEx _textureImageView;
     private VkSampler _textureSampler;
 
     private VkSampleCountFlags _msaaSamples = VkSampleCountFlags._1Bit;
 
     private Mesh[] _meshes;
     private Transform[] _transforms;
+    private Material[] _materials;
 
     private GpuMesh[] _gpuMeshes;
 
@@ -63,6 +62,7 @@ public sealed class App : IDisposable
     private VkDescriptorSet[] _descriptorSets;
 
     private PipelineManager _pipelineManager;
+    private TextureManager _textureManager;
 
     public App()
     {
@@ -207,6 +207,8 @@ public sealed class App : IDisposable
             }
         );
 
+        _textureManager = new TextureManager(_device);
+
         _commandPool = _device.CreateCommandPool(
             new VkCommandPoolCreateInfo
             {
@@ -218,11 +220,20 @@ public sealed class App : IDisposable
 
         CreateColorResources();
         CreateDepthResources();
-        CreateTextureImage();
 
-        CreateDescriptorSet();
+        CreateDescriptorSets();
 
-        CreatePipeline();
+        CreateTextureSampler();
+
+        var commandBuffer = BeginSingleTimeCommands();
+        _textureManager.CreateTexture("brick.jpg", ref commandBuffer, ref _allocator);
+        UpdateTextureDescriptor(_textureManager.Get("brick.jpg"));
+        _textureManager.CreateTexture("texture.jpg", ref commandBuffer, ref _allocator);
+        UpdateTextureDescriptor(_textureManager.Get("texture.jpg"));
+        EndSingleTimeCommands(ref commandBuffer);
+        _textureManager.ClearStagingBuffers();
+
+        CreatePipelines();
     }
 
     public unsafe void Run()
@@ -276,6 +287,9 @@ public sealed class App : IDisposable
             var mouseDelta = _inputManager.MouseDelta;
             var sensitivity = 0.001f;
             _camera.Rotate((float)mouseDelta.X * sensitivity, -(float)mouseDelta.Y * sensitivity);
+
+            if (_inputManager.IsKeyPressed(GlfwKey.Z)) _pipeline = _pipelineManager.Get("Wireframe");
+            if (_inputManager.IsKeyPressed(GlfwKey.X)) _pipeline = _pipelineManager.Get("Opaque");
 
             _device.WaitForFence(frameFence, -1);
             _device.ResetFences([frameFence]);
@@ -375,7 +389,7 @@ public sealed class App : IDisposable
                 commandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
                     _transforms[i].GetModelMatrix() * viewProj);
                 commandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit, ByteSize.Of<float4x4>(),
-                    0);
+                    _materials[i].TextureDescriptorIndex);
 
                 commandBuffer.BindVertexBuffers(0, [_gpuMeshes[i].VertexBuffer], [new ByteSize64(0)]);
                 commandBuffer.BindIndexBuffer(_gpuMeshes[i].IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
@@ -439,8 +453,7 @@ public sealed class App : IDisposable
 
         _device.DestroyDescriptorPool(_descriptorPool, null);
         _device.DestroyDescriptorSetLayout(_descriptorSetLayout, null);
-        _textureImage.Dispose();
-        _textureImageView.Dispose();
+        _textureManager.Dispose();
         _device.DestroySampler(_textureSampler, null);
         _device.DestroyFence(frameFence, null);
         _device.DestroySemaphore(imageAvailable, null);
@@ -460,7 +473,7 @@ public sealed class App : IDisposable
         _instance.DestroySurfaceKHR(_surface, null);
     }
 
-    private unsafe void CreatePipeline()
+    private unsafe void CreatePipelines()
     {
         using var compiler = ShaderC.CreateCompiler();
         using var options = ShaderC.CreateCompilerOptions();
@@ -539,7 +552,7 @@ public sealed class App : IDisposable
 
             var lineRasterizationState = new VkPipelineRasterizationStateCreateInfo
             {
-                PolygonMode = VkPolygonMode.Line,
+                PolygonMode = VkPolygonMode.Fill,
                 CullMode = VkCullModeFlags.BackBit,
                 LineWidth = 1.0f
             };
@@ -631,7 +644,7 @@ public sealed class App : IDisposable
 
             var pipelineDescription = new PipelineDescription
             {
-                Id = "Line",
+                Id = "Wireframe",
                 RenderingCreateInfo = rendering,
                 ShaderStages = shaderStages,
                 VertexInput = vertexInput,
@@ -645,7 +658,7 @@ public sealed class App : IDisposable
             _pipelineManager.Create(pipelineDescription);
         }
 
-        _pipeline = _pipelineManager.Get("Line");
+        _pipeline = _pipelineManager.Get("Wireframe");
     }
 
     private void CreateObjects()
@@ -654,11 +667,15 @@ public sealed class App : IDisposable
 
         _meshes = new Mesh[numObjects];
         _transforms = new Transform[numObjects];
+        _materials = new Material[numObjects];
+
         _gpuMeshes = new GpuMesh[numObjects];
 
         // mesh 1
         {
-            _meshes[0] = new Mesh(
+            var meshIndex = 0;
+
+            _meshes[meshIndex] = new Mesh(
                 [
                     new Vertex(new float3(-0.5f, -0.5f, 0.0f), new float3(0.0f, 0.0f, 1.0f), new float2(0.0f, 1.0f)),
                     new Vertex(new float3(0.5f, -0.5f, 0.0f), new float3(0.0f, 0.0f, 1.0f), new float2(1.0f, 1.0f)),
@@ -669,18 +686,24 @@ public sealed class App : IDisposable
                     0, 1, 2, 2, 3, 0
                 ]
             );
-            _transforms[0] = new Transform
+            _transforms[meshIndex] = new Transform
             {
                 Position = new float3(0.0f, -2.5f, 0.0f),
                 Rotation = floatQuat.CreateFromAxisAngle(float3.UnitX, float.DegreesToRadians(-90.0f)),
                 Scale = new float3(10.0f, 10.0f, 1.0f)
             };
-            _gpuMeshes[0] = new GpuMesh(_allocator, _meshes[0]);
+            _materials[meshIndex] = new Material
+            {
+                TextureDescriptorIndex = _textureManager.Get("brick.jpg").DescriptorIndex
+            };
+            _gpuMeshes[meshIndex] = new GpuMesh(_allocator, _meshes[0]);
         }
 
         // mesh 2
         {
-            _meshes[1] = new Mesh(
+            var meshIndex = 1;
+
+            _meshes[meshIndex] = new Mesh(
                 [
                     new Vertex(new float3(-0.5f, -0.5f, 0.5f), new float3(0.0f, 0.0f, 1.0f), new float2(0.0f, 1.0f)),
                     new Vertex(new float3(0.5f, -0.5f, 0.5f), new float3(0.0f, 0.0f, 1.0f), new float2(1.0f, 1.0f)),
@@ -721,18 +744,28 @@ public sealed class App : IDisposable
                     20, 21, 22, 22, 23, 20
                 ]
             );
-            _transforms[1] = Transform.Identity;
-            _transforms[1].Position = new float3(0.0f, 5.0f, -1.0f);
-            _gpuMeshes[1] = new GpuMesh(_allocator, _meshes[1]);
+            _transforms[meshIndex] = Transform.Identity;
+            _transforms[meshIndex].Position = new float3(0.0f, 5.0f, -1.0f);
+            _materials[meshIndex] = new Material
+            {
+                TextureDescriptorIndex = _textureManager.Get("texture.jpg").DescriptorIndex
+            };
+            _gpuMeshes[meshIndex] = new GpuMesh(_allocator, _meshes[1]);
         }
 
         // mesh 3
         {
+            var meshIndex = 2;
+            
             CubeSphere.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-            _meshes[2] = CubeSphere.CreateMesh(3, 2.0f);
-            _transforms[2] = Transform.Identity;
-            _transforms[2].Position = new float3(0.0f, 1.0f, 0.0f);
-            _gpuMeshes[2] = new GpuMesh(_allocator, _meshes[2]);
+            _meshes[meshIndex] = CubeSphere.CreateMesh(3, 2.0f);
+            _transforms[meshIndex] = Transform.Identity;
+            _transforms[meshIndex].Position = new float3(0.0f, 1.0f, 0.0f);
+            _materials[meshIndex] = new Material
+            {
+                TextureDescriptorIndex = _textureManager.Get("texture.jpg").DescriptorIndex
+            };
+            _gpuMeshes[meshIndex] = new GpuMesh(_allocator, _meshes[2]);
         }
     }
 
@@ -847,7 +880,7 @@ public sealed class App : IDisposable
         }
     }
 
-    private void TransitionImage(
+    public static void TransitionImage(
         VkImage image,
         VkImageLayout from,
         VkImageLayout to,
@@ -888,7 +921,7 @@ public sealed class App : IDisposable
         );
     }
 
-    private unsafe void CreateDescriptorSet()
+    private unsafe void CreateDescriptorSets()
     {
         VkDescriptorSetLayoutBinding[] bindings =
         [
@@ -962,11 +995,14 @@ public sealed class App : IDisposable
 
             _device.AllocateDescriptorSets(allocInfo, _descriptorSets);
         }
+    }
 
+    private unsafe void UpdateTextureDescriptor(Texture texture)
+    {
         var imageInfo = new VkDescriptorImageInfo
         {
             Sampler = _textureSampler,
-            ImageView = _textureImageView.VkImageView,
+            ImageView = texture.ImageView.VkImageView,
             ImageLayout = VkImageLayout.ShaderReadOnlyOptimal
         };
 
@@ -976,7 +1012,7 @@ public sealed class App : IDisposable
             {
                 DstSet = _descriptorSets[0],
                 DstBinding = 0,
-                DstArrayElement = 0,
+                DstArrayElement = texture.DescriptorIndex,
                 DescriptorCount = 1,
                 DescriptorType = VkDescriptorType.CombinedImageSampler,
                 ImageInfo = &imageInfo
@@ -1066,86 +1102,8 @@ public sealed class App : IDisposable
         return VkSampleCountFlags._1Bit;
     }
 
-    private unsafe void CreateTextureImage()
+    private void CreateTextureSampler()
     {
-        using var image = Stb.Load("textures/texture.jpg", 4);
-
-        if (image.IsNull())
-            throw new InvalidOperationException("Failed to load texture");
-
-        var imageSize = image.Width * image.Height * 4;
-        var bufferInfo = new BufferEx.CreateInfo
-        {
-            Name = "Staging Buffer",
-            BufferSize = ByteSize.Of(imageSize),
-            BufferUsage = VkBufferUsageFlags.TransferSrcBit,
-            AllocRequiredProperties = VkMemoryPropertyFlags.HostVisibleBit | VkMemoryPropertyFlags.HostCachedBit
-        };
-        using var stagingBuffer = _allocator.CreateBuffer(bufferInfo);
-        using var memory = stagingBuffer.Map();
-        Buffer.MemoryCopy(image.Data, memory.MapPtr.Pointer, imageSize, imageSize);
-        memory.Unmap();
-
-        var textureInfo = new ImageEx.CreateInfo
-        {
-            Name = "Texture Image",
-            ImageType = VkImageType._2D,
-            ImageFormat = VkFormat.R8G8B8A8SRGB,
-            ImageExtent = new VkExtent3D
-            {
-                Width = image.Width,
-                Height = image.Height,
-                Depth = 1
-            },
-            ImageMipLevels = 1,
-            ImageArrayLayers = 1,
-            ImageSamples = VkSampleCountFlags._1Bit,
-            ImageTiling = VkImageTiling.Optimal,
-            ImageUsage = VkImageUsageFlags.TransferDstBit | VkImageUsageFlags.SampledBit,
-            ImageSharingMode = VkSharingMode.Exclusive,
-            AllocRequiredProperties = VkMemoryPropertyFlags.DeviceLocalBit
-        };
-        _textureImage = _allocator.CreateImage(textureInfo);
-
-        var commandBuffer = BeginSingleTimeCommands();
-
-        TransitionImage(
-            _textureImage.VkImage,
-            VkImageLayout.Undefined,
-            VkImageLayout.TransferDstOptimal,
-            VkPipelineStageFlags.TopOfPipeBit,
-            VkPipelineStageFlags.TransferBit,
-            VkAccessFlags.None,
-            VkAccessFlags.TransferWriteBit,
-            VkImageAspectFlags.ColorBit,
-            commandBuffer
-        );
-        CopyBufferToImage(ref commandBuffer, stagingBuffer.VkBuffer, ref _textureImage, image.Width, image.Height);
-        TransitionImage(
-            _textureImage.VkImage,
-            VkImageLayout.TransferDstOptimal,
-            VkImageLayout.ShaderReadOnlyOptimal,
-            VkPipelineStageFlags.TransferBit,
-            VkPipelineStageFlags.FragmentShaderBit,
-            VkAccessFlags.TransferWriteBit,
-            VkAccessFlags.ShaderReadBit,
-            VkImageAspectFlags.ColorBit,
-            commandBuffer
-        );
-
-        EndSingleTimeCommands(ref commandBuffer);
-
-        var subresourceRange = new VkImageSubresourceRange
-        {
-            AspectMask = VkImageAspectFlags.ColorBit,
-            BaseMipLevel = 0,
-            LayerCount = 1,
-            BaseArrayLayer = 0,
-            LevelCount = 1
-        };
-        _textureImageView = _textureImage.CreateImageView(VkImageViewType._2D, subresourceRange,
-            _textureImage.Allocator.VkAllocator);
-
         var samplerInfo = new VkSamplerCreateInfo
         {
             MagFilter = VkFilter.Linear,
@@ -1196,7 +1154,7 @@ public sealed class App : IDisposable
         _queue.WaitIdle();
     }
 
-    private void CopyBufferToImage(ref CommandBuffer commandBuffer, VkBuffer buffer, ref ImageEx image, int width,
+    public static void CopyBufferToImage(ref CommandBuffer commandBuffer, VkBuffer buffer, ref ImageEx image, int width,
         int height)
     {
         var region = new VkBufferImageCopy

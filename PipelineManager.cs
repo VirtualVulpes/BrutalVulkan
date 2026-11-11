@@ -3,7 +3,7 @@ using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 
 namespace BrutalVulkan;
-C
+
 public readonly record struct PipelineDescription(
     String Id,
     VkPipelineRenderingCreateInfo RenderingCreateInfo,
