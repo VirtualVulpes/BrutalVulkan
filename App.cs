@@ -48,18 +48,18 @@ public sealed class App : IDisposable
 
     private VkSampleCountFlags _msaaSamples = VkSampleCountFlags._1Bit;
 
-    private Mesh[] _meshes;
+    private MeshId[] _meshIds;
     private Transform[] _transforms;
-    private Material[] _materials;
-
-    private GpuMesh[] _gpuMeshes;
-
+    private MaterialId[] _materialIds;
+    
     private VkDescriptorSetLayout _descriptorSetLayout;
     private VkDescriptorPool _descriptorPool;
     private VkDescriptorSet[] _descriptorSets;
 
     private PipelineManager _pipelineManager;
     private TextureManager _textureManager;
+    private MeshManager _meshManager;
+    private MaterialManager _materialManager;
 
     public App()
     {
@@ -203,9 +203,7 @@ public sealed class App : IDisposable
                 VulkanApiVersion = (uint)VulkanHelpers.Api.VERSION_1_3
             }
         );
-
-        _textureManager = new TextureManager(_device);
-
+        
         _commandPool = _device.CreateCommandPool(
             new VkCommandPoolCreateInfo
             {
@@ -222,15 +220,12 @@ public sealed class App : IDisposable
 
         CreateTextureSampler();
 
-        var commandBuffer = BeginSingleTimeCommands();
-        _textureManager.CreateTexture("brick.ktx2", ref commandBuffer, ref _allocator);
-        UpdateTextureDescriptor(_textureManager.Get("brick"));
-        _textureManager.CreateTexture("texture.ktx2", ref commandBuffer, ref _allocator);
-        UpdateTextureDescriptor(_textureManager.Get("texture"));
-        EndSingleTimeCommands(ref commandBuffer);
-        _textureManager.ClearStagingBuffers();
-
         CreatePipelines();
+
+        CreateMeshes();
+        CreateTextures();
+        CreateMaterials();
+        CreateObjects();
     }
 
     public unsafe void Run()
@@ -247,8 +242,6 @@ public sealed class App : IDisposable
         var renderFinished = _swapchainImages.Select(_ => _device.CreateSemaphore(new VkSemaphoreCreateInfo(), null))
             .ToArray();
         var frameFence = _device.CreateFence(VkFenceCreateFlags.SignaledBit, null);
-
-        CreateObjects();
 
         var last = Stopwatch.GetTimestamp();
 
@@ -381,16 +374,18 @@ public sealed class App : IDisposable
             commandBuffer.SetScissor(0, [new VkRect2D(_extent)]);
 
             var viewProj = _camera.GetView() * _camera.GetProjection();
-            for (var i = 0; i < _meshes.Length; i++)
+            for (var i = 0; i < _meshIds.Length; i++)
             {
                 commandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
                     _transforms[i].GetModelMatrix() * viewProj);
                 commandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit, ByteSize.Of<float4x4>(),
-                    _materials[i].TextureDescriptorIndex);
+                    _materialManager.GetMaterial(_materialIds[i]).TextureId);
 
-                commandBuffer.BindVertexBuffers(0, [_gpuMeshes[i].VertexBuffer], [new ByteSize64(0)]);
-                commandBuffer.BindIndexBuffer(_gpuMeshes[i].IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
-                commandBuffer.DrawIndexed(_gpuMeshes[i].IndexCount, 1, 0, 0, 0);
+                var gpuMesh = _meshManager.GetGpuMesh(_meshIds[i]);
+                
+                commandBuffer.BindVertexBuffers(0, [gpuMesh.VertexBuffer], [new ByteSize64(0)]);
+                commandBuffer.BindIndexBuffer(gpuMesh.IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
+                commandBuffer.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
             }
 
             commandBuffer.EndRendering();
@@ -439,18 +434,11 @@ public sealed class App : IDisposable
         }
 
         _device.WaitIdle();
-
-        foreach (var mesh in _gpuMeshes)
-        {
-            mesh.Dispose();
-        }
-
-        Array.Clear(_gpuMeshes);
-
-
+        
         _device.DestroyDescriptorPool(_descriptorPool, null);
         _device.DestroyDescriptorSetLayout(_descriptorSetLayout, null);
         _textureManager.Dispose();
+        _meshManager.Dispose();
         _device.DestroySampler(_textureSampler, null);
         _device.DestroyFence(frameFence, null);
         _device.DestroySemaphore(imageAvailable, null);
@@ -658,21 +646,13 @@ public sealed class App : IDisposable
         _pipeline = _pipelineManager.Get("Wireframe");
     }
 
-    private void CreateObjects()
+    private void CreateMeshes()
     {
-        var numObjects = 3;
+        _meshManager = new MeshManager(_allocator);
 
-        _meshes = new Mesh[numObjects];
-        _transforms = new Transform[numObjects];
-        _materials = new Material[numObjects];
-
-        _gpuMeshes = new GpuMesh[numObjects];
-
-        // mesh 1
+        // plane
         {
-            var meshIndex = 0;
-
-            _meshes[meshIndex] = new Mesh(
+            _meshManager.AddMesh("plane", new Mesh(
                 [
                     new Vertex(new float3(-0.5f, -0.5f, 0.0f), new float3(0.0f, 0.0f, 1.0f), new float2(0.0f, 1.0f)),
                     new Vertex(new float3(0.5f, -0.5f, 0.0f), new float3(0.0f, 0.0f, 1.0f), new float2(1.0f, 1.0f)),
@@ -682,25 +662,12 @@ public sealed class App : IDisposable
                 [
                     0, 1, 2, 2, 3, 0
                 ]
-            );
-            _transforms[meshIndex] = new Transform
-            {
-                Position = new float3(0.0f, -2.5f, 0.0f),
-                Rotation = floatQuat.CreateFromAxisAngle(float3.UnitX, float.DegreesToRadians(-90.0f)),
-                Scale = new float3(10.0f, 10.0f, 1.0f)
-            };
-            _materials[meshIndex] = new Material
-            {
-                TextureDescriptorIndex = _textureManager.Get("brick").DescriptorIndex
-            };
-            _gpuMeshes[meshIndex] = new GpuMesh(_allocator, _meshes[0]);
+            ));
         }
 
-        // mesh 2
+        // cube
         {
-            var meshIndex = 1;
-
-            _meshes[meshIndex] = new Mesh(
+            _meshManager.AddMesh("cube", new Mesh(
                 [
                     new Vertex(new float3(-0.5f, -0.5f, 0.5f), new float3(0.0f, 0.0f, 1.0f), new float2(0.0f, 1.0f)),
                     new Vertex(new float3(0.5f, -0.5f, 0.5f), new float3(0.0f, 0.0f, 1.0f), new float2(1.0f, 1.0f)),
@@ -740,29 +707,82 @@ public sealed class App : IDisposable
                     16, 17, 18, 18, 19, 16,
                     20, 21, 22, 22, 23, 20
                 ]
-            );
-            _transforms[meshIndex] = Transform.Identity;
-            _transforms[meshIndex].Position = new float3(0.0f, 5.0f, -1.0f);
-            _materials[meshIndex] = new Material
-            {
-                TextureDescriptorIndex = _textureManager.Get("texture").DescriptorIndex
-            };
-            _gpuMeshes[meshIndex] = new GpuMesh(_allocator, _meshes[1]);
+            ));
         }
 
-        // mesh 3
+        // planet
         {
-            var meshIndex = 2;
-
             CubeSphere.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-            _meshes[meshIndex] = CubeSphere.CreateMesh(3, 2.0f);
-            _transforms[meshIndex] = Transform.Identity;
-            _transforms[meshIndex].Position = new float3(0.0f, 1.0f, 0.0f);
-            _materials[meshIndex] = new Material
+            _meshManager.AddMesh("planet", CubeSphere.CreateMesh(3, 2.0f));
+        }
+    }
+
+    private void CreateTextures()
+    {
+        _textureManager = new TextureManager();
+
+        var commandBuffer = BeginSingleTimeCommands();
+        {
+            var textureId = _textureManager.AddTexture("brick.ktx2", ref commandBuffer, ref _allocator);
+            UpdateTextureDescriptor(textureId);
+        }
+        {
+            var textureId = _textureManager.AddTexture("statue.ktx2", ref commandBuffer, ref _allocator);
+            UpdateTextureDescriptor(textureId);
+        }
+        EndSingleTimeCommands(ref commandBuffer);
+        _textureManager.ClearStagingBuffers();
+    }
+
+    private void CreateMaterials()
+    {
+        _materialManager = new MaterialManager();
+        
+        _materialManager.AddMaterial("brick", new Material { TextureId = _textureManager.GetTextureId("brick") });
+        _materialManager.AddMaterial("statue", new Material { TextureId = _textureManager.GetTextureId("statue") });
+    }
+
+    private void CreateObjects()
+    {
+        var numObjects = 3;
+
+        _meshIds = new MeshId[numObjects];
+        _transforms = new Transform[numObjects];
+        _materialIds = new MaterialId[numObjects];
+
+        // object 1
+        {
+            var objectIndex = 0;
+
+            _meshIds[objectIndex] = _meshManager.GetMeshId("plane");
+            _transforms[objectIndex] = new Transform
             {
-                TextureDescriptorIndex = _textureManager.Get("texture").DescriptorIndex
+                Position = new float3(0.0f, -2.5f, 0.0f),
+                Rotation = floatQuat.CreateFromAxisAngle(float3.UnitX, float.DegreesToRadians(-90.0f)),
+                Scale = new float3(10.0f, 10.0f, 1.0f)
             };
-            _gpuMeshes[meshIndex] = new GpuMesh(_allocator, _meshes[2]);
+            _materialIds[objectIndex] = _materialManager.GetMaterialId("brick");
+        }
+
+        // object 2
+        {
+            var objectIndex = 1;
+
+            _meshIds[objectIndex] = _meshManager.GetMeshId("cube");
+            _transforms[objectIndex] = Transform.Identity;
+            _transforms[objectIndex].Position = new float3(0.0f, 5.0f, -1.0f);
+            _materialIds[objectIndex] = _materialManager.GetMaterialId("statue");
+
+        }
+
+        // object 3
+        {
+            var objectIndex = 2;
+
+            _meshIds[objectIndex] = _meshManager.GetMeshId("planet");
+            _transforms[objectIndex] = Transform.Identity;
+            _transforms[objectIndex].Position = new float3(0.0f, 1.0f, 0.0f);
+            _materialIds[objectIndex] = _materialManager.GetMaterialId("statue");
         }
     }
 
@@ -996,12 +1016,12 @@ public sealed class App : IDisposable
         }
     }
 
-    private unsafe void UpdateTextureDescriptor(Texture texture)
+    private unsafe void UpdateTextureDescriptor(TextureId textureId)
     {
         var imageInfo = new VkDescriptorImageInfo
         {
             Sampler = _textureSampler,
-            ImageView = texture.ImageView.VkImageView,
+            ImageView = _textureManager.GetTexture(textureId).ImageView.VkImageView,
             ImageLayout = VkImageLayout.ShaderReadOnlyOptimal
         };
 
@@ -1011,7 +1031,7 @@ public sealed class App : IDisposable
             {
                 DstSet = _descriptorSets[0],
                 DstBinding = 0,
-                DstArrayElement = texture.DescriptorIndex,
+                DstArrayElement = (int)textureId.Value,
                 DescriptorCount = 1,
                 DescriptorType = VkDescriptorType.CombinedImageSampler,
                 ImageInfo = &imageInfo

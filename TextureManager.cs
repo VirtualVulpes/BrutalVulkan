@@ -10,41 +10,18 @@ using VkFormat = Brutal.VulkanApi.VkFormat;
 
 namespace BrutalVulkan;
 
-public sealed class Texture : IDisposable
-{
-    public ImageEx Image { get; }
-    public ImageViewEx ImageView { get; }
-    public int DescriptorIndex { get; }
-
-    public Texture(ImageEx image, ImageViewEx imageView, int descriptorIndex)
-    {
-        Image = image;
-        ImageView = imageView;
-        DescriptorIndex = descriptorIndex;
-    }
-
-    public void Dispose()
-    {
-        ImageView.Dispose();
-        Image.Dispose();
-    }
-}
+public readonly record struct TextureId(UInt32 Value);
 
 public sealed class TextureManager : IDisposable
 {
-    private static int _descriptorIndex = 0;
-    private DeviceEx _device;
-
-    private Dictionary<String, Texture> _textures = new();
+    private UInt32 _nextId = 0;
+    
+    private readonly Dictionary<TextureId, Texture> _textures = new();
+    private readonly Dictionary<String, TextureId> _names = new();
 
     private readonly List<BufferEx> _pendingStagingBuffers = new();
 
-    public TextureManager(DeviceEx device)
-    {
-        _device = device;
-    }
-
-    public unsafe void CreateTexture(String fileName, ref CommandBuffer commandBuffer, ref VmaAllocator allocator)
+    private unsafe Texture LoadTexture(String fileName, ref CommandBuffer commandBuffer, ref VmaAllocator allocator)
     {
         var filePath = Encoding.UTF8.GetBytes(Path.Join("textures", fileName));
         KtxErrorCode result =
@@ -168,16 +145,33 @@ public sealed class TextureManager : IDisposable
         
         var textureImageView = textureImage.CreateImageView(VkImageViewType._2D, subresourceRange,
             textureImage.Allocator.VkAllocator);
-
-        _textures.Add(Path.GetFileNameWithoutExtension(fileName),
-            new Texture(textureImage, textureImageView, _descriptorIndex++));
         
         image.Dispose();
+
+        return new Texture(textureImage, textureImageView);
     }
 
-    public Texture Get(String name)
+    public TextureId AddTexture(String fileName, ref CommandBuffer commandBuffer, ref VmaAllocator allocator)
     {
-        return _textures[name];
+        var textureId = new TextureId(_nextId++);
+        
+        var texture = LoadTexture(fileName, ref commandBuffer, ref allocator);
+        var name = Path.GetFileNameWithoutExtension(fileName);
+
+        _textures.Add(textureId, texture);
+        _names.Add(name, textureId);
+        
+        return textureId;
+    }
+
+    public Texture GetTexture(TextureId textureId)
+    {
+        return _textures[textureId];
+    }
+
+    public TextureId GetTextureId(String name)
+    {
+        return _names[name];
     }
 
     // call after submitting queue
