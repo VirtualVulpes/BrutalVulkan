@@ -58,6 +58,7 @@ public sealed class App : IDisposable
 
     private PipelineManager _pipelineManager;
     private TextureManager _textureManager;
+    private ModelLoader _modelLoader;
     private MeshManager _meshManager;
     private MaterialManager _materialManager;
 
@@ -223,7 +224,8 @@ public sealed class App : IDisposable
         CreatePipelines();
 
         CreateMeshes();
-        CreateTextures();
+        LoadTextures();
+        LoadModels();
         CreateMaterials();
         CreateObjects();
     }
@@ -717,21 +719,32 @@ public sealed class App : IDisposable
         }
     }
 
-    private void CreateTextures()
+    private void LoadTextures()
     {
         _textureManager = new TextureManager();
 
         var commandBuffer = BeginSingleTimeCommands();
         {
-            var textureId = _textureManager.AddTexture("brick.ktx2", ref commandBuffer, ref _allocator);
+            var textureId = _textureManager.AddTexture("brick.ktx2", commandBuffer, _allocator);
             UpdateTextureDescriptor(textureId);
         }
         {
-            var textureId = _textureManager.AddTexture("statue.ktx2", ref commandBuffer, ref _allocator);
+            var textureId = _textureManager.AddTexture("statue.ktx2", commandBuffer, _allocator);
             UpdateTextureDescriptor(textureId);
         }
-        EndSingleTimeCommands(ref commandBuffer);
+        {
+            var textureId = _textureManager.AddTexture("viking_room.ktx2", commandBuffer, _allocator);
+            UpdateTextureDescriptor(textureId);
+        }
+        EndSingleTimeCommands(commandBuffer);
         _textureManager.ClearStagingBuffers();
+    }
+
+    private void LoadModels()
+    {
+        _modelLoader = new ModelLoader();
+        var mesh = _modelLoader.LoadModel("viking_room.gltf");
+        _meshManager.AddMesh("viking_room", mesh);
     }
 
     private void CreateMaterials()
@@ -740,11 +753,12 @@ public sealed class App : IDisposable
         
         _materialManager.AddMaterial("brick", new Material { TextureId = _textureManager.GetTextureId("brick") });
         _materialManager.AddMaterial("statue", new Material { TextureId = _textureManager.GetTextureId("statue") });
+        _materialManager.AddMaterial("viking_room", new Material { TextureId = _textureManager.GetTextureId("viking_room") });
     }
 
     private void CreateObjects()
     {
-        var numObjects = 3;
+        var numObjects = 4;
 
         _meshIds = new MeshId[numObjects];
         _transforms = new Transform[numObjects];
@@ -779,9 +793,21 @@ public sealed class App : IDisposable
         {
             var objectIndex = 2;
 
-            _meshIds[objectIndex] = _meshManager.GetMeshId("planet");
+            _meshIds[objectIndex] = _meshManager.GetMeshId("viking_room");
             _transforms[objectIndex] = Transform.Identity;
             _transforms[objectIndex].Position = new float3(0.0f, 1.0f, 0.0f);
+            _transforms[objectIndex].RotateWorld(float3.UnitY, float.DegreesToRadians(-90f));
+            _materialIds[objectIndex] = _materialManager.GetMaterialId("viking_room");
+        }
+        
+        // object 4
+        {
+            var objectIndex = 3;
+
+            _meshIds[objectIndex] = _meshManager.GetMeshId("planet");
+            _transforms[objectIndex] = Transform.Identity;
+            _transforms[objectIndex].Position = new float3(3.0f, 1.0f, -2.0f);
+            _transforms[objectIndex].RotateWorld(float3.UnitY, float.DegreesToRadians(-90f));
             _materialIds[objectIndex] = _materialManager.GetMaterialId("statue");
         }
     }
@@ -1159,7 +1185,7 @@ public sealed class App : IDisposable
         return buffer;
     }
 
-    private void EndSingleTimeCommands(ref CommandBuffer buffer)
+    private void EndSingleTimeCommands(CommandBuffer buffer)
     {
         buffer.End();
 
@@ -1173,7 +1199,7 @@ public sealed class App : IDisposable
         _queue.WaitIdle();
     }
 
-    public static void CopyBufferToImage(ref CommandBuffer commandBuffer, VkBuffer buffer, ref ImageEx image, int width,
+    public static void CopyBufferToImage(CommandBuffer commandBuffer, VkBuffer buffer, ImageEx image, int width,
         int height)
     {
         var region = new VkBufferImageCopy

@@ -21,7 +21,7 @@ public sealed class TextureManager : IDisposable
 
     private readonly List<BufferEx> _pendingStagingBuffers = new();
 
-    private unsafe Texture LoadTexture(String fileName, ref CommandBuffer commandBuffer, ref VmaAllocator allocator)
+    private unsafe Texture LoadTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator)
     {
         var filePath = Encoding.UTF8.GetBytes(Path.Join("textures", fileName));
         KtxErrorCode result =
@@ -63,7 +63,7 @@ public sealed class TextureManager : IDisposable
 
         var textureInfo = new ImageEx.CreateInfo
         {
-            Name = "Texture Image",
+            Name = fileName,
             ImageType = VkImageType._2D,
             ImageFormat = format,
             ImageExtent = new VkExtent3D
@@ -151,11 +151,11 @@ public sealed class TextureManager : IDisposable
         return new Texture(textureImage, textureImageView);
     }
 
-    public TextureId AddTexture(String fileName, ref CommandBuffer commandBuffer, ref VmaAllocator allocator)
+    public TextureId AddTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator)
     {
         var textureId = new TextureId(_nextId++);
         
-        var texture = LoadTexture(fileName, ref commandBuffer, ref allocator);
+        var texture = LoadTexture(fileName, commandBuffer, allocator);
         var name = Path.GetFileNameWithoutExtension(fileName);
 
         _textures.Add(textureId, texture);
