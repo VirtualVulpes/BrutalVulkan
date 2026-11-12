@@ -6,4 +6,5 @@ public static class Constants
     public const int WindowHeight = 600;
 
     public const int MaxTextures = 256;
+    public const int MaxFramesInFlight = 2;
 }

@@ -396,9 +396,9 @@ public sealed class App : IDisposable
 
                 var gpuMesh = _meshManager.GetGpuMesh(_meshIds[i]);
                 
-                commandBuffer.BindVertexBuffers(0, [gpuMesh.VertexBuffer], [new ByteSize64(0)]);
-                commandBuffer.BindIndexBuffer(gpuMesh.IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
-                commandBuffer.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
+                commandBuffers[frameIndex].BindVertexBuffers(0, [gpuMesh.VertexBuffer], [new ByteSize64(0)]);
+                commandBuffers[frameIndex].BindIndexBuffer(gpuMesh.IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
+                commandBuffers[frameIndex].DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
             }
 
             commandBuffers[frameIndex].EndRendering();
