@@ -1,6 +1,9 @@
 namespace BrutalVulkan;
 
-public readonly record struct MaterialId(UInt32 Value);
+public readonly record struct MaterialId(UInt32 Value)
+{
+    public static readonly MaterialId Invalid = new(UInt32.MaxValue);
+}
 
 public sealed class MaterialManager
 {

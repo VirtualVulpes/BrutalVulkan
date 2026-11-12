@@ -10,7 +10,10 @@ using VkFormat = Brutal.VulkanApi.VkFormat;
 
 namespace BrutalVulkan;
 
-public readonly record struct TextureId(UInt32 Value);
+public readonly record struct TextureId(UInt32 Value)
+{
+    public static readonly TextureId Invalid = new(UInt32.MaxValue);
+}
 
 public sealed class TextureManager : IDisposable
 {

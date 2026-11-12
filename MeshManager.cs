@@ -3,7 +3,10 @@ using Brutal.VulkanApi.Vma;
 
 namespace BrutalVulkan;
 
-public readonly record struct MeshId(UInt32 Value);
+public readonly record struct MeshId(UInt32 Value)
+{
+    public static readonly MeshId Invalid = new(UInt32.MaxValue);
+}
 
 public sealed class MeshManager : IDisposable
 {
