@@ -31,7 +31,7 @@ public sealed class App : IDisposable
     private int _queueFamily = -1;
     private Queue _queue;
     private VkExtent2D _extent;
-    private Pipeline _pipeline;
+    private PipelineId _pipelineId;
     private VkSurfaceKHR _surface;
     private VmaAllocator _allocator;
     private VkImage[] _swapchainImages;
@@ -288,8 +288,8 @@ public sealed class App : IDisposable
             var sensitivity = 0.001f;
             _camera.Rotate((float)mouseDelta.X * sensitivity, -(float)mouseDelta.Y * sensitivity);
 
-            if (_inputManager.IsKeyPressed(GlfwKey.Z)) _pipeline = _pipelineManager.Get("Wireframe");
-            if (_inputManager.IsKeyPressed(GlfwKey.X)) _pipeline = _pipelineManager.Get("Opaque");
+            if (_inputManager.IsKeyPressed(GlfwKey.Z)) _pipelineId = _pipelineManager.GetPipelineId("Wireframe");
+            if (_inputManager.IsKeyPressed(GlfwKey.X)) _pipelineId = _pipelineManager.GetPipelineId("Opaque");
 
             _device.WaitForFence(frameFences[frameIndex], -1);
             _device.ResetFences([frameFences[frameIndex]]);
@@ -368,9 +368,9 @@ public sealed class App : IDisposable
                 }
             );
 
-            commandBuffers[frameIndex].BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
+            commandBuffers[frameIndex].BindPipeline(VkPipelineBindPoint.Graphics, _pipelineManager.GetPipeline(_pipelineId).Handle);
             commandBuffers[frameIndex]
-                .BindDescriptorSets(VkPipelineBindPoint.Graphics, _pipeline.Layout, 0, _descriptorSets, null);
+                .BindDescriptorSets(VkPipelineBindPoint.Graphics, _pipelineManager.GetPipeline(_pipelineId).Layout, 0, _descriptorSets, null);
 
             commandBuffers[frameIndex].SetViewport(0, [
                 new VkViewport
@@ -388,9 +388,9 @@ public sealed class App : IDisposable
             var viewProj = _camera.GetView() * _camera.GetProjection();
             for (var i = 0; i < _meshIds.Length; i++)
             {
-                commandBuffers[frameIndex].PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
+                commandBuffers[frameIndex].PushConstants(_pipelineManager.GetPipeline(_pipelineId).Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
                     _transforms[i].GetModelMatrix() * viewProj);
-                commandBuffers[frameIndex].PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit,
+                commandBuffers[frameIndex].PushConstants(_pipelineManager.GetPipeline(_pipelineId).Layout, VkShaderStageFlags.FragmentBit,
                     ByteSize.Of<float4x4>(),
                     _materialManager.GetMaterial(_materialIds[i]).TextureId);
 
@@ -561,7 +561,6 @@ public sealed class App : IDisposable
 
             var pipelineDescription = new PipelineDescription
             {
-                Id = "Opaque",
                 RenderingCreateInfo = rendering,
                 ShaderStages = shaderStages,
                 VertexInput = vertexInput,
@@ -572,7 +571,7 @@ public sealed class App : IDisposable
                 PushConstantRanges = pushConstantRanges.ToArray().ToImmutableArray()
             };
 
-            _pipelineManager.Create(pipelineDescription);
+            _pipelineManager.AddPipeline("Opaque", pipelineDescription);
         }
 
         // Pipeline 2
@@ -646,7 +645,6 @@ public sealed class App : IDisposable
 
             var pipelineDescription = new PipelineDescription
             {
-                Id = "Wireframe",
                 RenderingCreateInfo = rendering,
                 ShaderStages = shaderStages,
                 VertexInput = vertexInput,
@@ -657,10 +655,10 @@ public sealed class App : IDisposable
                 PushConstantRanges = pushConstantRanges.ToArray().ToImmutableArray()
             };
 
-            _pipelineManager.Create(pipelineDescription);
+            _pipelineManager.AddPipeline("Wireframe", pipelineDescription);
         }
 
-        _pipeline = _pipelineManager.Get("Wireframe");
+        _pipelineId = _pipelineManager.GetPipelineId("Wireframe");
     }
 
     private void CreateMeshes()

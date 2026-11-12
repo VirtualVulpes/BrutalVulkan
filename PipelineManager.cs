@@ -4,8 +4,9 @@ using Brutal.VulkanApi.Abstractions;
 
 namespace BrutalVulkan;
 
+public readonly record struct PipelineId(UInt32 Value);
+
 public readonly record struct PipelineDescription(
-    String Id,
     VkPipelineRenderingCreateInfo RenderingCreateInfo,
     ShaderStages ShaderStages,
     VertexInput VertexInput,
@@ -19,28 +20,37 @@ public readonly record struct PipelineDescription(
 public sealed class PipelineManager : IDisposable
 {
     private readonly DeviceEx _device;
+    
+    private UInt32 _nextId = 0;
 
-    private readonly Dictionary<String, Pipeline> _pipelines = new();
+    private readonly Dictionary<PipelineId, Pipeline> _pipelines = new();
+    private readonly Dictionary<String, PipelineId> _names = new();
 
     public PipelineManager(DeviceEx device)
     {
         _device = device;
     }
 
-    public void Create(PipelineDescription description)
+    public PipelineId AddPipeline(String name, PipelineDescription description)
     {
-        if (_pipelines.ContainsKey(description.Id)) return;
-
+        var pipelineId = new PipelineId(_nextId++);
+        
         var pipeline = CreatePipeline(description);
 
-        _pipelines.Add(description.Id, pipeline);
+        _pipelines.Add(pipelineId, pipeline);
+        _names.Add(name, pipelineId);
+
+        return pipelineId;
     }
 
-    public Pipeline Get(String id)
-    { 
-        _pipelines.TryGetValue(id, out Pipeline pipeline);
+    public Pipeline GetPipeline(PipelineId pipelineId)
+    {
+        return _pipelines[pipelineId];
+    }
 
-        return pipeline;
+    public PipelineId GetPipelineId(String name)
+    { 
+        return _names[name];
     }
 
     private unsafe Pipeline CreatePipeline(PipelineDescription description)
