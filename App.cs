@@ -232,18 +232,26 @@ public sealed class App : IDisposable
 
     public unsafe void Run()
     {
-        var commandBuffer = _device.AllocateCommandBuffer(
-            new VkCommandBufferAllocateInfo
-            {
-                CommandPool = _commandPool,
-                Level = VkCommandBufferLevel.Primary
-            }
-        );
+        var imagesAvailable = new VkSemaphore[Constants.MaxFramesInFlight];
+        var frameFences = new VkFence[Constants.MaxFramesInFlight];
+        var commandBuffers = new CommandBuffer[Constants.MaxFramesInFlight];
+        for (var i = 0; i < Constants.MaxFramesInFlight; i++)
+        {
+            imagesAvailable[i] = _device.CreateSemaphore(new VkSemaphoreCreateInfo(), null);
+            frameFences[i] = _device.CreateFence(VkFenceCreateFlags.SignaledBit, null);
 
-        var imageAvailable = _device.CreateSemaphore(new VkSemaphoreCreateInfo(), null);
+            commandBuffers[i] = _device.AllocateCommandBuffer(
+                new VkCommandBufferAllocateInfo
+                {
+                    CommandPool = _commandPool,
+                    Level = VkCommandBufferLevel.Primary
+                }
+            );
+        }
+
         var renderFinished = _swapchainImages.Select(_ => _device.CreateSemaphore(new VkSemaphoreCreateInfo(), null))
             .ToArray();
-        var frameFence = _device.CreateFence(VkFenceCreateFlags.SignaledBit, null);
+        var frameIndex = 0;
 
         var last = Stopwatch.GetTimestamp();
 
@@ -283,13 +291,14 @@ public sealed class App : IDisposable
             if (_inputManager.IsKeyPressed(GlfwKey.Z)) _pipeline = _pipelineManager.Get("Wireframe");
             if (_inputManager.IsKeyPressed(GlfwKey.X)) _pipeline = _pipelineManager.Get("Opaque");
 
-            _device.WaitForFence(frameFence, -1);
-            _device.ResetFences([frameFence]);
+            _device.WaitForFence(frameFences[frameIndex], -1);
+            _device.ResetFences([frameFences[frameIndex]]);
 
-            _device.AcquireNextImageKHR(_swapchain, -1, imageAvailable, VkFence.NullHandle, out var imageIndex);
+            _device.AcquireNextImageKHR(_swapchain, -1, imagesAvailable[frameIndex], VkFence.NullHandle,
+                out var imageIndex);
 
-            commandBuffer.Reset();
-            commandBuffer.Begin(VkCommandBufferUsageFlags.OneTimeSubmitBit);
+            commandBuffers[frameIndex].Reset();
+            commandBuffers[frameIndex].Begin(VkCommandBufferUsageFlags.OneTimeSubmitBit);
 
             TransitionImage(
                 _swapchainImages[imageIndex],
@@ -300,7 +309,7 @@ public sealed class App : IDisposable
                 VkAccessFlags.None,
                 VkAccessFlags.ColorAttachmentWriteBit,
                 VkImageAspectFlags.ColorBit,
-                commandBuffer
+                commandBuffers[frameIndex]
             );
 
             TransitionImage(
@@ -312,7 +321,7 @@ public sealed class App : IDisposable
                 VkAccessFlags.DepthStencilAttachmentWriteBit,
                 VkAccessFlags.DepthStencilAttachmentWriteBit,
                 VkImageAspectFlags.DepthBit,
-                commandBuffer
+                commandBuffers[frameIndex]
             );
 
             TransitionImage(
@@ -324,7 +333,7 @@ public sealed class App : IDisposable
                 VkAccessFlags.ColorAttachmentWriteBit,
                 VkAccessFlags.ColorAttachmentWriteBit,
                 VkImageAspectFlags.ColorBit,
-                commandBuffer
+                commandBuffers[frameIndex]
             );
 
             var colorAttachment = new VkRenderingAttachmentInfo
@@ -348,7 +357,7 @@ public sealed class App : IDisposable
                 ClearValue = new VkClearDepthStencilValue { Depth = 1.0f, Stencil = 0 }
             };
 
-            commandBuffer.BeginRendering(
+            commandBuffers[frameIndex].BeginRendering(
                 new VkRenderingInfo
                 {
                     RenderArea = new VkRect2D(_extent),
@@ -359,10 +368,11 @@ public sealed class App : IDisposable
                 }
             );
 
-            commandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
-            commandBuffer.BindDescriptorSets(VkPipelineBindPoint.Graphics, _pipeline.Layout, 0, _descriptorSets, null);
+            commandBuffers[frameIndex].BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
+            commandBuffers[frameIndex]
+                .BindDescriptorSets(VkPipelineBindPoint.Graphics, _pipeline.Layout, 0, _descriptorSets, null);
 
-            commandBuffer.SetViewport(0, [
+            commandBuffers[frameIndex].SetViewport(0, [
                 new VkViewport
                 {
                     X = 0.0f,
@@ -373,14 +383,15 @@ public sealed class App : IDisposable
                     MaxDepth = 1.0f
                 }
             ]);
-            commandBuffer.SetScissor(0, [new VkRect2D(_extent)]);
+            commandBuffers[frameIndex].SetScissor(0, [new VkRect2D(_extent)]);
 
             var viewProj = _camera.GetView() * _camera.GetProjection();
             for (var i = 0; i < _meshIds.Length; i++)
             {
-                commandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
+                commandBuffers[frameIndex].PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
                     _transforms[i].GetModelMatrix() * viewProj);
-                commandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit, ByteSize.Of<float4x4>(),
+                commandBuffers[frameIndex].PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit,
+                    ByteSize.Of<float4x4>(),
                     _materialManager.GetMaterial(_materialIds[i]).TextureId);
 
                 var gpuMesh = _meshManager.GetGpuMesh(_meshIds[i]);
@@ -390,7 +401,7 @@ public sealed class App : IDisposable
                 commandBuffer.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
             }
 
-            commandBuffer.EndRendering();
+            commandBuffers[frameIndex].EndRendering();
 
             TransitionImage(
                 _swapchainImages[imageIndex],
@@ -401,18 +412,18 @@ public sealed class App : IDisposable
                 VkAccessFlags.ColorAttachmentWriteBit,
                 VkAccessFlags.None,
                 VkImageAspectFlags.ColorBit,
-                commandBuffer
+                commandBuffers[frameIndex]
             );
 
-            commandBuffer.End();
+            commandBuffers[frameIndex].End();
 
             var signalSemaphore = renderFinished[imageIndex];
             _queue.Submit(
-                [imageAvailable],
+                [imagesAvailable[frameIndex]],
                 [VkPipelineStageFlags.ColorAttachmentOutputBit],
-                [commandBuffer],
+                [commandBuffers[frameIndex]],
                 [signalSemaphore],
-                frameFence
+                frameFences[frameIndex]
             );
 
             var swapchain = _swapchain;
@@ -433,6 +444,8 @@ public sealed class App : IDisposable
                 _isFramebufferResized = false;
                 RecreateSwapchain();
             }
+
+            frameIndex = (frameIndex + 1) % Constants.MaxFramesInFlight;
         }
 
         _device.WaitIdle();
@@ -442,8 +455,10 @@ public sealed class App : IDisposable
         _textureManager.Dispose();
         _meshManager.Dispose();
         _device.DestroySampler(_textureSampler, null);
-        _device.DestroyFence(frameFence, null);
-        _device.DestroySemaphore(imageAvailable, null);
+        foreach (var fence in frameFences)
+            _device.DestroyFence(fence, null);
+        foreach (var semaphore in imagesAvailable)
+            _device.DestroySemaphore(semaphore, null);
         foreach (var semaphore in renderFinished)
             _device.DestroySemaphore(semaphore, null);
         _device.DestroyCommandPool(_commandPool, null);
