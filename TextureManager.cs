@@ -2,7 +2,6 @@ using System.Text;
 using Brutal;
 using Brutal.KtxApi;
 using Brutal.KtxApi.Abstractions;
-using Brutal.StbApi;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
@@ -18,13 +17,20 @@ public readonly record struct TextureId(UInt32 Value)
 public sealed class TextureManager : IDisposable
 {
     private UInt32 _nextId = 0;
-    
+
     private readonly Dictionary<TextureId, Texture> _textures = new();
     private readonly Dictionary<String, TextureId> _names = new();
 
-    private readonly List<BufferEx> _pendingStagingBuffers = new();
+    private readonly List<BufferEx> _pendingStagingBuffers = [];
 
-    private unsafe Texture LoadTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator)
+    private readonly bool _supportsBc7;
+
+    public TextureManager(bool supportsBc7)
+    {
+        _supportsBc7 = supportsBc7;
+    }
+
+    private unsafe Texture LoadTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator, VkFormat fallbackFormat)
     {
         var filePath = Encoding.UTF8.GetBytes(Path.Join("textures", fileName));
         KtxErrorCode result =
@@ -33,8 +39,29 @@ public sealed class TextureManager : IDisposable
         if (result != KtxErrorCode.Success)
             throw new InvalidOperationException($"Could not load file at {filePath}");
 
-        var imageSize = image.GetDataSize();
-        var numLevels = (int)image.NumLevels;
+        if (image.ClassId != ClassId.Texture2C)
+            throw new InvalidOperationException("Only KTX2 texture files are supported");
+
+        var ktx2 = image.AsKtxTexture2Handle();
+
+        if (ktx2.NeedsTranscoding())
+        {
+            if (_supportsBc7)
+                result = ktx2.TranscodeBasis(KtxTranscodeFmt.Bc7Rgba, KtxTranscodeFlagBits.HighQuality);
+            else
+                result = ktx2.TranscodeBasis(KtxTranscodeFmt.Rgba32, KtxTranscodeFlagBits.HighQuality);
+
+            if (result != KtxErrorCode.Success)
+                throw new InvalidOperationException($"Could not transcode file at {filePath}");
+        }
+
+        VkFormat format = (VkFormat)ktx2.GetVkFormat();
+        if (format == VkFormat.Undefined)
+            format = fallbackFormat;
+
+
+        var imageSize = ktx2.GetDataSize();
+        var numLevels = (int)ktx2.NumLevels;
 
         var bufferInfo = new BufferEx.CreateInfo
         {
@@ -48,21 +75,8 @@ public sealed class TextureManager : IDisposable
         _pendingStagingBuffers.Add(stagingBuffer);
 
         using var memory = stagingBuffer.Map();
-        Buffer.MemoryCopy(image.GetData(), memory.MapPtr.Pointer, imageSize, imageSize);
+        Buffer.MemoryCopy(ktx2.GetData(), memory.MapPtr.Pointer, imageSize, imageSize);
         memory.Unmap();
-
-        VkFormat format;
-        if (image.ClassId == ClassId.Texture2C)
-        {
-            var ktx2 = image.AsKtxTexture2Handle();
-            format = (VkFormat)ktx2.GetVkFormat();
-            if (format == VkFormat.Undefined)
-                format = VkFormat.R8G8B8A8UNorm;
-        }
-        else
-        {
-            format = VkFormat.R8G8B8A8UNorm;
-        }
 
         var textureInfo = new ImageEx.CreateInfo
         {
@@ -71,8 +85,8 @@ public sealed class TextureManager : IDisposable
             ImageFormat = format,
             ImageExtent = new VkExtent3D
             {
-                Width = (int)image.BaseWidth,
-                Height = (int)image.BaseHeight,
+                Width = (int)ktx2.BaseWidth,
+                Height = (int)ktx2.BaseHeight,
                 Depth = 1
             },
             ImageMipLevels = numLevels,
@@ -100,14 +114,14 @@ public sealed class TextureManager : IDisposable
             numLevels,
             0
         );
-        
-        for (var i = 0; i < image.NumLevels; i++)
+
+        for (var i = 0; i < ktx2.NumLevels; i++)
         {
-            var width = int.Max(1, (int)image.BaseWidth >> i);
-            var height = int.Max(1, (int)image.BaseHeight >> i);
-            
-            image.GetImageOffset((uint)i, 0, 0, out ulong offset);
-            
+            var width = int.Max(1, (int)ktx2.BaseWidth >> i);
+            var height = int.Max(1, (int)ktx2.BaseHeight >> i);
+
+            ktx2.GetImageOffset((uint)i, 0, 0, out ulong offset);
+
             regions[i] = new VkBufferImageCopy
             {
                 BufferOffset = new ByteSize64(offset),
@@ -136,7 +150,7 @@ public sealed class TextureManager : IDisposable
             numLevels,
             0
         );
-        
+
         var subresourceRange = new VkImageSubresourceRange
         {
             AspectMask = VkImageAspectFlags.ColorBit,
@@ -145,25 +159,25 @@ public sealed class TextureManager : IDisposable
             BaseArrayLayer = 0,
             LevelCount = numLevels
         };
-        
+
         var textureImageView = textureImage.CreateImageView(VkImageViewType._2D, subresourceRange,
             textureImage.Allocator.VkAllocator);
-        
-        image.Dispose();
+
+        ktx2.Dispose();
 
         return new Texture(textureImage, textureImageView);
     }
 
-    public TextureId AddTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator)
+    public TextureId AddTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator, VkFormat fallbackFormat)
     {
         var textureId = new TextureId(_nextId++);
-        
-        var texture = LoadTexture(fileName, commandBuffer, allocator);
+
+        var texture = LoadTexture(fileName, commandBuffer, allocator, fallbackFormat);
         var name = Path.GetFileNameWithoutExtension(fileName);
 
         _textures.Add(textureId, texture);
         _names.Add(name, textureId);
-        
+
         return textureId;
     }
 

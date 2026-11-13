@@ -144,6 +144,12 @@ public sealed class App : IDisposable
 
         var priority = 1.0f;
 
+        var features = _physicalDevice.GetFeatures();
+        if (features.TextureCompressionBC)
+        {
+            Console.WriteLine("yippee!");
+        }
+        
         var vulkan12Features = new VkPhysicalDeviceVulkan12Features
             { ShaderSampledImageArrayNonUniformIndexing = true, DescriptorBindingPartiallyBound = true };
         var vulkan13Features = new VkPhysicalDeviceVulkan13Features
@@ -521,19 +527,19 @@ public sealed class App : IDisposable
 
     private void LoadTextures()
     {
-        _textureManager = new TextureManager();
+        _textureManager = new TextureManager(_physicalDevice.GetFeatures().TextureCompressionBC);
 
         var commandBuffer = BeginSingleTimeCommands();
         {
-            var textureId = _textureManager.AddTexture("brick.ktx2", commandBuffer, _allocator);
+            var textureId = _textureManager.AddTexture("brick.ktx2", commandBuffer, _allocator, VkFormat.Bc7SRGBBlock);
             UpdateTextureDescriptor(textureId);
         }
         {
-            var textureId = _textureManager.AddTexture("statue.ktx2", commandBuffer, _allocator);
+            var textureId = _textureManager.AddTexture("statue.ktx2", commandBuffer, _allocator, VkFormat.Bc7SRGBBlock);
             UpdateTextureDescriptor(textureId);
         }
         {
-            var textureId = _textureManager.AddTexture("viking_room.ktx2", commandBuffer, _allocator);
+            var textureId = _textureManager.AddTexture("viking_room.ktx2", commandBuffer, _allocator, VkFormat.Bc7SRGBBlock);
             UpdateTextureDescriptor(textureId);
         }
         EndSingleTimeCommands(commandBuffer);
