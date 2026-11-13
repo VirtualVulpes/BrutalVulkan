@@ -144,12 +144,6 @@ public sealed class App : IDisposable
 
         var priority = 1.0f;
 
-        var features = _physicalDevice.GetFeatures();
-        if (features.TextureCompressionBC)
-        {
-            Console.WriteLine("yippee!");
-        }
-        
         var vulkan12Features = new VkPhysicalDeviceVulkan12Features
             { ShaderSampledImageArrayNonUniformIndexing = true, DescriptorBindingPartiallyBound = true };
         var vulkan13Features = new VkPhysicalDeviceVulkan13Features
