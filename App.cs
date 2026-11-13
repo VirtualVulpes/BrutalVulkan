@@ -523,19 +523,21 @@ public sealed class App : IDisposable
     {
         _textureManager = new TextureManager(_physicalDevice.GetFeatures().TextureCompressionBC);
 
+        var features = _physicalDevice.GetFeatures();
+
         var commandBuffer = BeginSingleTimeCommands();
+
+        foreach (var fileName in new[]
+                 {
+                     "brick.ktx2",
+                     "statue.ktx2",
+                     "viking_room.ktx2"
+                 })
         {
-            var textureId = _textureManager.AddTexture("brick.ktx2", commandBuffer, _allocator, VkFormat.Bc7SRGBBlock);
+            var textureId = _textureManager.AddTexture(fileName, commandBuffer, _allocator, TextureColorSpace.SRgb);
             UpdateTextureDescriptor(textureId);
         }
-        {
-            var textureId = _textureManager.AddTexture("statue.ktx2", commandBuffer, _allocator, VkFormat.Bc7SRGBBlock);
-            UpdateTextureDescriptor(textureId);
-        }
-        {
-            var textureId = _textureManager.AddTexture("viking_room.ktx2", commandBuffer, _allocator, VkFormat.Bc7SRGBBlock);
-            UpdateTextureDescriptor(textureId);
-        }
+
         EndSingleTimeCommands(commandBuffer);
         _textureManager.ClearStagingBuffers();
     }

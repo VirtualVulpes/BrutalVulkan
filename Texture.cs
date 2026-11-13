@@ -2,6 +2,12 @@ using Brutal.VulkanApi.Abstractions;
 
 namespace BrutalVulkan;
 
+public enum TextureColorSpace
+{
+    SRgb,
+    Linear
+}
+
 public sealed class Texture : IDisposable
 {
     public ImageEx Image { get; }

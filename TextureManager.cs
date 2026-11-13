@@ -30,7 +30,7 @@ public sealed class TextureManager : IDisposable
         _supportsBc7 = supportsBc7;
     }
 
-    private unsafe Texture LoadTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator, VkFormat fallbackFormat)
+    private unsafe Texture LoadTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator, TextureColorSpace colorSpace)
     {
         var filePath = Path.Join("textures", fileName);
         KtxErrorCode result =
@@ -57,8 +57,18 @@ public sealed class TextureManager : IDisposable
 
         VkFormat format = (VkFormat)ktx2.GetVkFormat();
         if (format == VkFormat.Undefined)
-            format = fallbackFormat;
+        {
+            var srgb = (colorSpace == TextureColorSpace.SRgb);
 
+            if (_supportsBc7)
+            {
+                format = srgb ? VkFormat.Bc7SRGBBlock : VkFormat.Bc7UNormBlock;
+            }
+            else
+            {
+                format = srgb ? VkFormat.R8G8B8A8SRGB : VkFormat.R8G8B8A8UNorm;
+            }
+        }
 
         var imageSize = ktx2.GetDataSize();
         var numLevels = (int)ktx2.NumLevels;
@@ -168,11 +178,11 @@ public sealed class TextureManager : IDisposable
         return new Texture(textureImage, textureImageView);
     }
 
-    public TextureId AddTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator, VkFormat fallbackFormat)
+    public TextureId AddTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator, TextureColorSpace colorSpace)
     {
         var textureId = new TextureId(_nextId++);
-
-        var texture = LoadTexture(fileName, commandBuffer, allocator, fallbackFormat);
+        
+        var texture = LoadTexture(fileName, commandBuffer, allocator, colorSpace);
         var name = Path.GetFileNameWithoutExtension(fileName);
 
         _textures.Add(textureId, texture);
