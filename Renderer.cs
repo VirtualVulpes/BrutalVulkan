@@ -163,7 +163,7 @@ public sealed class Renderer : IDisposable
         
         foreach (var format in surfaceFormats)
         {
-            if (format is { Format: VkFormat.B8G8R8SRGB, ColorSpace: VkColorSpaceKHR.SRGBNonlinearKHR })
+            if (format is { Format: VkFormat.B8G8R8A8SRGB, ColorSpace: VkColorSpaceKHR.SRGBNonlinearKHR })
                 return format;
         }
 
