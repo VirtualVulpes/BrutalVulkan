@@ -32,9 +32,9 @@ public sealed class TextureManager : IDisposable
 
     private unsafe Texture LoadTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator, VkFormat fallbackFormat)
     {
-        var filePath = Encoding.UTF8.GetBytes(Path.Join("textures", fileName));
+        var filePath = Path.Join("textures", fileName);
         KtxErrorCode result =
-            KtxTexture.CreateFromNamedFile(filePath, KtxTextureCreateFlagBits.LoadImageDataBit, out var image);
+            KtxTexture.CreateFromNamedFile(Encoding.UTF8.GetBytes(filePath), KtxTextureCreateFlagBits.LoadImageDataBit, out var image);
 
         if (result != KtxErrorCode.Success)
             throw new InvalidOperationException($"Could not load file at {filePath}");
