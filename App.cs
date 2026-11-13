@@ -522,9 +522,7 @@ public sealed class App : IDisposable
     private void LoadTextures()
     {
         _textureManager = new TextureManager(_physicalDevice.GetFeatures().TextureCompressionBC);
-
-        var features = _physicalDevice.GetFeatures();
-
+        
         var commandBuffer = BeginSingleTimeCommands();
 
         foreach (var fileName in new[]
