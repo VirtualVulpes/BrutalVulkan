@@ -45,7 +45,7 @@ public sealed class Renderer : IDisposable
     private VkImageView[] _swapchainImageViews;
 
     private VkSwapchainKHR _swapchain;
-    public VkFormat SwapchainFormat { get; private set; }
+    public VkSurfaceFormatKHR SwapchainFormat { get; private set; }
 
     private VkExtent2D _extent;
 
@@ -120,19 +120,16 @@ public sealed class Renderer : IDisposable
             VkCompositeAlphaFlagsKHR.InheritBitKHR
         ];
         var compositeAlpha = alphaModes.First(mode => (capabilities.SupportedCompositeAlpha & mode) != 0);
-
-        Span<VkSurfaceFormatKHR> surfaceFormats =
-            stackalloc VkSurfaceFormatKHR[_physicalDevice.GetSurfaceFormatsKHR_Count(_surface)];
-        _physicalDevice.GetSurfaceFormatsKHR_Write(_surface, surfaceFormats);
-        SwapchainFormat = surfaceFormats[0].Format;
+        
+        SwapchainFormat = ChooseSurfaceFormat();
 
         _swapchain = _device.CreateSwapchainKHR(
             new VkSwapchainCreateInfoKHR
             {
                 Surface = _surface,
                 MinImageCount = imageCount,
-                ImageFormat = SwapchainFormat,
-                ImageColorSpace = surfaceFormats[0].ColorSpace,
+                ImageFormat = SwapchainFormat.Format,
+                ImageColorSpace = SwapchainFormat.ColorSpace,
                 ImageExtent = _extent,
                 ImageArrayLayers = 1,
                 ImageUsage = VkImageUsageFlags.ColorAttachmentBit,
@@ -155,6 +152,24 @@ public sealed class Renderer : IDisposable
             .ToArray();
     }
 
+    private VkSurfaceFormatKHR ChooseSurfaceFormat()
+    {
+        Span<VkSurfaceFormatKHR> surfaceFormats =
+            stackalloc VkSurfaceFormatKHR[_physicalDevice.GetSurfaceFormatsKHR_Count(_surface)];
+        _physicalDevice.GetSurfaceFormatsKHR_Write(_surface, surfaceFormats);
+
+        if (surfaceFormats.IsEmpty)
+            throw new InvalidOperationException("No surface formats available.");
+        
+        foreach (var format in surfaceFormats)
+        {
+            if (format is { Format: VkFormat.B8G8R8SRGB, ColorSpace: VkColorSpaceKHR.SRGBNonlinearKHR })
+                return format;
+        }
+
+        return surfaceFormats[0];
+    }
+
     private void CreateSwapchainImageViews()
     {
         for (var i = 0; i < _swapchainImageViews.Length; i++)
@@ -164,7 +179,7 @@ public sealed class Renderer : IDisposable
                 {
                     Image = _swapchainImages[i],
                     ViewType = VkImageViewType._2D,
-                    Format = SwapchainFormat,
+                    Format = SwapchainFormat.Format,
                     SubresourceRange = new VkImageSubresourceRange
                     {
                         AspectMask = VkImageAspectFlags.ColorBit,
@@ -225,7 +240,7 @@ public sealed class Renderer : IDisposable
         {
             Name = "Color Image",
             ImageType = VkImageType._2D,
-            ImageFormat = SwapchainFormat,
+            ImageFormat = SwapchainFormat.Format,
             ImageExtent = new VkExtent3D
             {
                 Width = _extent.Width,

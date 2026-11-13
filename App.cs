@@ -308,7 +308,7 @@ public sealed class App : IDisposable
 
             var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
 
-            VkFormat format = _renderer.SwapchainFormat;
+            VkFormat format = _renderer.SwapchainFormat.Format;
 
             var rendering = new VkPipelineRenderingCreateInfo
             {
@@ -392,7 +392,7 @@ public sealed class App : IDisposable
 
             var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
 
-            VkFormat format = _renderer.SwapchainFormat;
+            VkFormat format = _renderer.SwapchainFormat.Format;
 
             var rendering = new VkPipelineRenderingCreateInfo
             {
