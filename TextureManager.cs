@@ -84,7 +84,7 @@ public sealed class TextureManager : IDisposable
         var stagingBuffer = allocator.CreateBuffer(bufferInfo);
         _pendingStagingBuffers.Add(stagingBuffer);
 
-        using var memory = stagingBuffer.Map();
+        var memory = stagingBuffer.Map();
         Buffer.MemoryCopy(ktx2.GetData(), memory.MapPtr.Pointer, imageSize, imageSize);
         memory.Unmap();
 

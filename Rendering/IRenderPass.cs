@@ -2,7 +2,7 @@ using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.Rendering;
 
 public readonly struct RenderContext
 {
@@ -20,6 +20,8 @@ public readonly struct RenderContext
     public float4x4 ViewProj { get; init; }
 
     public VkDescriptorSet[] GlobalDescriptorSets { get; init; }
+    
+    public Int32 FrameIndex { get; init; }
 }
 
 public interface IRenderPass

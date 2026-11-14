@@ -17,7 +17,8 @@ public readonly record struct PipelineDescription(
     VkPipelineMultisampleStateCreateInfo MultisampleStateCreateInfo,
     VkPipelineDepthStencilStateCreateInfo DepthStencilStateCreateInfo,
     ImmutableArray<VkDescriptorSetLayout> DescriptorSetLayouts,
-    ImmutableArray<VkPushConstantRange> PushConstantRanges
+    ImmutableArray<VkPushConstantRange> PushConstantRanges,
+    VkPipelineColorBlendStateCreateInfo ColorBlendStateCreateInfo
 );
 
 public sealed class PipelineManager : IDisposable
@@ -50,7 +51,12 @@ public sealed class PipelineManager : IDisposable
     {
         return _pipelines[pipelineId];
     }
-
+    
+    public Pipeline GetPipeline(String name)
+    {
+        return _pipelines[_names[name]];
+    }
+    
     public PipelineId GetPipelineId(String name)
     { 
         return _names[name];
@@ -68,6 +74,7 @@ public sealed class PipelineManager : IDisposable
         var rasterizationState = description.RasterizationStateCreateInfo;
         var multisampleState = description.MultisampleStateCreateInfo;
         var depthStencilState = description.DepthStencilStateCreateInfo;
+        var colorBlendState = description.ColorBlendStateCreateInfo;
 
         Span<VkDynamicState> dynamicStates = [VkDynamicState.Viewport, VkDynamicState.Scissor];
 
@@ -80,7 +87,7 @@ public sealed class PipelineManager : IDisposable
                 DynamicStateCount = dynamicStates.Length,
                 DynamicStates = dynamicStatesPtr
             };
-
+            
             VkPipeline pipeline = _device.CreateGraphicsPipeline(
                 VkPipelineCache.NullHandle,
                 new VkGraphicsPipelineCreateInfo
@@ -93,7 +100,7 @@ public sealed class PipelineManager : IDisposable
                     ViewportState = &viewportState,
                     RasterizationState = &rasterizationState,
                     MultisampleState = &multisampleState,
-                    ColorBlendState = Presets.BlendState.BlendNone,
+                    ColorBlendState = &colorBlendState,
                     Layout = pipelineLayout,
                     DynamicState = &dynamicState,
                     DepthStencilState = &depthStencilState

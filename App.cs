@@ -1,14 +1,15 @@
-using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Brutal;
 using Brutal.GlfwApi;
+using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using Brutal.ShaderCApi;
 using Brutal.Strings;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
+using BrutalVulkan.Rendering;
 
 namespace BrutalVulkan;
 
@@ -38,16 +39,18 @@ public sealed class App : IDisposable
 
     private VkCommandPool _commandPool;
 
-    private MeshId[] _meshIds;
-    private Transform[] _transforms;
-    private MaterialId[] _materialIds;
-
     private PipelineManager _pipelineManager;
     private TextureManager _textureManager;
     private ModelLoader _modelLoader;
     private MeshManager _meshManager;
     private MaterialManager _materialManager;
     private Renderer _renderer;
+
+    private ImGuiManager _imGuiManager;
+
+    private CommandBufferManager _cmdManager;
+
+    private readonly List<RenderObject> _renderObjects = [];
 
     public App()
     {
@@ -57,7 +60,7 @@ public sealed class App : IDisposable
             new GlfwWindow.CreateInfo
                 { Title = "Brutal Vulkan", Size = new int2(Constants.WindowHeight, Constants.WindowHeight) }
         );
-        Glfw.PInvoke.SetInputMode(_window, (int)GlfwInputMode.Cursor, (int)GlfwCursorMode.Disabled);
+        Glfw.PInvoke.SetInputMode(_window, (Int32)GlfwInputMode.Cursor, (Int32)GlfwCursorMode.Disabled);
         _gcHandle = GCHandle.Alloc(this);
         unsafe
         {
@@ -90,34 +93,35 @@ public sealed class App : IDisposable
         var handle = GCHandle.FromIntPtr((nint)window.UserPointer);
         var app = (App)handle.Target!;
 
-        app._renderer.SetFramebufferResized();
-        app._camera.AspectRatio = (float)size.X / size.Y;
+        app._renderer.OnFramebufferResize();
+        app._imGuiManager.OnFramebufferResize(size);
+        app._camera.AspectRatio = (Single)size.X / size.Y;
     }
 
     private unsafe void InitVulkan()
     {
         _ = Vulkan.GetInstanceProcAddr;
 
-        var instanceExtensions = new HashSet<string>();
+        var instanceExtensions = new HashSet<String>();
         VulkanHelpers.AddPlatformRequiredExtensions(instanceExtensions);
         var glfwExtensions = Glfw.GetRequiredInstanceExtensions(out var glfwExtensionCount);
         for (var i = 0; i < glfwExtensionCount; i++)
             instanceExtensions.Add(Utf8.GetString(glfwExtensions[i]));
 
-        var layers = new HashSet<string>();
+        var layers = new HashSet<String>();
         VulkanHelpers.AddValidationLayers(layers);
 
         _instance = Vulkan.CreateInstance(
             new Instance.CreateInfo
             {
-                AppInfo = new VkApplicationInfo { ApiVersion = (int)VulkanHelpers.Api.VERSION_1_3 },
+                AppInfo = new VkApplicationInfo { ApiVersion = (Int32)VulkanHelpers.Api.VERSION_1_3 },
                 Flags = VulkanHelpers.GetPlatformRequiredInstanceCreateFlags(),
                 EnabledExtensions = instanceExtensions,
                 EnabledLayers = layers,
             }
         );
 
-        if (Glfw.CreateWindowSurface(_instance.VkHandle, _window, out var surfaceHandle) != (int)VkResult.Success)
+        if (Glfw.CreateWindowSurface(_instance.VkHandle, _window, out var surfaceHandle) != (Int32)VkResult.Success)
             throw new InvalidOperationException("Failed to create a Vulkan surface for the window");
         _surface = new VkSurfaceKHR((nint)surfaceHandle);
 
@@ -138,7 +142,7 @@ public sealed class App : IDisposable
             throw new InvalidOperationException(
                 "No Vulkan device has a queue family that can draw and present to the window");
 
-        var deviceExtensions = new HashSet<string>();
+        var deviceExtensions = new HashSet<String>();
         VulkanHelpers.AddSwapchainExtensions(deviceExtensions);
         VulkanHelpers.AddMandatoryIfSupportedDeviceExtensions(deviceExtensions, _physicalDevice);
 
@@ -174,13 +178,15 @@ public sealed class App : IDisposable
 
         CreateCommandPool();
 
+        _cmdManager = new CommandBufferManager(_device, _queue, _commandPool);
+
         _allocator = _device.CreateVmaAllocator(
             new VmaAllocatorCreateInfo
             {
                 Instance = _instance,
                 PhysicalDevice = _physicalDevice,
                 Device = _device,
-                VulkanApiVersion = (uint)VulkanHelpers.Api.VERSION_1_3
+                VulkanApiVersion = (UInt32)VulkanHelpers.Api.VERSION_1_3
             }
         );
 
@@ -188,8 +194,11 @@ public sealed class App : IDisposable
 
         CreateTextureSampler();
 
+        _imGuiManager = new ImGuiManager(_allocator, _device,
+            new float2(_window.Width, _window.Height), _cmdManager);
+
         _renderer = new Renderer(_device, _physicalDevice, _surface, _window, _allocator, _commandPool, _queue,
-            _pipelineManager, _descriptorSets);
+            _pipelineManager, _descriptorSets, _imGuiManager);
 
         CreatePipelines();
 
@@ -207,7 +216,7 @@ public sealed class App : IDisposable
         while (!_window.ShouldClose)
         {
             var now = Stopwatch.GetTimestamp();
-            var dt = float.Min((float)Stopwatch.GetElapsedTime(last, now).TotalSeconds, 0.1f);
+            var dt = Single.Min((Single)Stopwatch.GetElapsedTime(last, now).TotalSeconds, 0.1f);
             last = now;
 
             _inputManager.Update();
@@ -235,21 +244,21 @@ public sealed class App : IDisposable
 
             var mouseDelta = _inputManager.MouseDelta;
             var sensitivity = 0.001f;
-            _camera.Rotate((float)mouseDelta.X * sensitivity, -(float)mouseDelta.Y * sensitivity);
+            _camera.Rotate((Single)mouseDelta.X * sensitivity, -(Single)mouseDelta.Y * sensitivity);
 
-            var renderObjects = new List<RenderObject>();
-            for (int i = 0; i < _meshIds.Length; i++)
-            {
-                renderObjects.Add(new RenderObject
-                {
-                    Mesh = _meshManager.GetGpuMesh(_meshIds[i]),
-                    ModelMatrix = _transforms[i].GetModelMatrix(),
-                    Material = _materialManager.GetMaterial(_materialIds[i])
-                });
-            }
+            _imGuiManager.NewFrame();
 
-            _renderer.DrawFrame(renderObjects.ToArray(), _camera.GetView() * _camera.GetProjection());
+            CreateUI();
+
+            _renderer.DrawFrame([.. _renderObjects], _camera.GetView() * _camera.GetProjection());
         }
+    }
+
+    private void CreateUI()
+    {
+        ImGui.Begin("Hello ImGui"u8);
+        ImGui.Text("Hello, world!"u8);
+        ImGui.End();
     }
 
     private void CreateCommandPool()
@@ -269,12 +278,12 @@ public sealed class App : IDisposable
         using var compiler = ShaderC.CreateCompiler();
         using var options = ShaderC.CreateCompilerOptions();
 
-        VkShaderModule CompileShader(ReadOnlySpan<byte> glsl, ShaderKind kind)
+        VkShaderModule CompileShader(ReadOnlySpan<Byte> glsl, ShaderKind kind)
         {
             using var spirv = compiler.Compile(glsl, kind, "shader"u8, "main"u8, options);
             return ShaderModuleExtensions.FromSpirv(
                 _device,
-                new ReadOnlySpan<byte>(spirv.GetBytes(), (int)spirv.GetLength()),
+                new ReadOnlySpan<Byte>(spirv.GetBytes(), spirv.GetLength()),
                 null
             );
         }
@@ -302,7 +311,7 @@ public sealed class App : IDisposable
 
             var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
 
-            VkFormat format = _renderer.SwapchainFormat.Format;
+            var format = _renderer.SwapchainFormat.Format;
 
             var rendering = new VkPipelineRenderingCreateInfo
             {
@@ -322,7 +331,7 @@ public sealed class App : IDisposable
                 new()
                 {
                     Offset = ByteSize.Of<float4x4>(),
-                    Size = ByteSize.Of<uint>(),
+                    Size = ByteSize.Of<UInt32>(),
                     StageFlags = VkShaderStageFlags.FragmentBit
                 }
             ];
@@ -341,7 +350,7 @@ public sealed class App : IDisposable
                 RasterizationSamples = _renderer.MsaaSamples
             };
 
-            var lineRasterizationState = new VkPipelineRasterizationStateCreateInfo
+            var rasterizationState = new VkPipelineRasterizationStateCreateInfo
             {
                 PolygonMode = VkPolygonMode.Fill,
                 CullMode = VkCullModeFlags.BackBit,
@@ -353,17 +362,18 @@ public sealed class App : IDisposable
                 RenderingCreateInfo = rendering,
                 ShaderStages = shaderStages,
                 VertexInput = vertexInput,
-                RasterizationStateCreateInfo = lineRasterizationState,
+                RasterizationStateCreateInfo = rasterizationState,
                 MultisampleStateCreateInfo = multisampleState,
                 DepthStencilStateCreateInfo = depthStencil,
                 DescriptorSetLayouts = [_descriptorSetLayout],
-                PushConstantRanges = pushConstantRanges.ToArray().ToImmutableArray()
+                PushConstantRanges = [.. pushConstantRanges],
+                ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
             };
 
             _pipelineManager.AddPipeline("Opaque", pipelineDescription);
         }
 
-        // Pipeline 2
+        // Wireframe
         {
             using var shaderStages = new ShaderStages(
                 _device,
@@ -386,7 +396,7 @@ public sealed class App : IDisposable
 
             var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
 
-            VkFormat format = _renderer.SwapchainFormat.Format;
+            var format = _renderer.SwapchainFormat.Format;
 
             var rendering = new VkPipelineRenderingCreateInfo
             {
@@ -406,7 +416,7 @@ public sealed class App : IDisposable
                 new()
                 {
                     Offset = ByteSize.Of<float4x4>(),
-                    Size = ByteSize.Of<uint>(),
+                    Size = ByteSize.Of<UInt32>(),
                     StageFlags = VkShaderStageFlags.FragmentBit
                 }
             ];
@@ -425,7 +435,7 @@ public sealed class App : IDisposable
                 RasterizationSamples = _renderer.MsaaSamples
             };
 
-            var lineRasterizationState = new VkPipelineRasterizationStateCreateInfo
+            var rasterizationState = new VkPipelineRasterizationStateCreateInfo
             {
                 PolygonMode = VkPolygonMode.Line,
                 CullMode = VkCullModeFlags.BackBit,
@@ -437,14 +447,118 @@ public sealed class App : IDisposable
                 RenderingCreateInfo = rendering,
                 ShaderStages = shaderStages,
                 VertexInput = vertexInput,
-                RasterizationStateCreateInfo = lineRasterizationState,
+                RasterizationStateCreateInfo = rasterizationState,
                 MultisampleStateCreateInfo = multisampleState,
                 DepthStencilStateCreateInfo = depthStencil,
                 DescriptorSetLayouts = [_descriptorSetLayout],
-                PushConstantRanges = pushConstantRanges.ToArray().ToImmutableArray()
+                PushConstantRanges = [.. pushConstantRanges],
+                ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
             };
 
             _pipelineManager.AddPipeline("Wireframe", pipelineDescription);
+        }
+
+        // ImGui
+        {
+            using var shaderStages = new ShaderStages(
+                _device,
+                [
+                    Presets.ShaderStage.Vertex(
+                        CompileShader(
+                            LoadShader("imgui.vert"),
+                            ShaderKind.VertexShader
+                        )
+                    ),
+                    Presets.ShaderStage.Fragment(
+                        CompileShader(
+                            LoadShader("imgui.frag"),
+                            ShaderKind.FragmentShader
+                        )
+                    )
+                ],
+                null
+            );
+
+            var vertexInput = new VertexInput(1, 3).AddBinding(0, ByteSize.Of<ImDrawVert>(), VkVertexInputRate.Vertex)
+                .AddAttribute(0, 0, VkFormat.R32G32SFloat, ByteSize.Zero)
+                .AddAttribute(1, 0, VkFormat.R32G32SFloat, ByteSize.Of(8))
+                .AddAttribute(2, 0, VkFormat.R8G8B8A8UNorm, ByteSize.Of(16));
+
+            var format = _renderer.SwapchainFormat.Format;
+
+            var rendering = new VkPipelineRenderingCreateInfo
+            {
+                ColorAttachmentCount = 1,
+                ColorAttachmentFormats = &format,
+                DepthAttachmentFormat = VkFormat.D32SFloat
+            };
+
+            ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
+            [
+                new()
+                {
+                    Offset = ByteSize.Zero,
+                    Size = ByteSize.Of<PushConstantBlocks.ImGuiBlock>(),
+                    StageFlags = VkShaderStageFlags.VertexBit
+                }
+            ];
+
+            var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+            {
+                DepthTestEnable = false,
+                DepthWriteEnable = false,
+                DepthCompareOp = VkCompareOp.LessOrEqual,
+                DepthBoundsTestEnable = false,
+                StencilTestEnable = false
+            };
+
+            var multisampleState = new VkPipelineMultisampleStateCreateInfo
+            {
+                SampleShadingEnable = false,
+                RasterizationSamples = _renderer.MsaaSamples
+            };
+
+            var rasterizationState = new VkPipelineRasterizationStateCreateInfo
+            {
+                PolygonMode = VkPolygonMode.Fill,
+                CullMode = VkCullModeFlags.None,
+                LineWidth = 1.0f,
+            };
+
+            var colorBlendState = new VkPipelineColorBlendAttachmentState
+            {
+                ColorWriteMask = VkColorComponentFlags.RBit | VkColorComponentFlags.GBit | VkColorComponentFlags.BBit |
+                                 VkColorComponentFlags.ABit,
+                BlendEnable = true,
+                SrcColorBlendFactor = VkBlendFactor.SrcAlpha,
+                DstColorBlendFactor = VkBlendFactor.OneMinusSrcAlpha,
+                ColorBlendOp = VkBlendOp.Add,
+                SrcAlphaBlendFactor = VkBlendFactor.One,
+                DstAlphaBlendFactor = VkBlendFactor.OneMinusSrcAlpha,
+                AlphaBlendOp = VkBlendOp.Add
+            };
+
+            var colorBlendStateCreateInfo = new VkPipelineColorBlendStateCreateInfo
+            {
+                LogicOpEnable = false,
+                AttachmentCount = 1,
+                Attachments = &colorBlendState
+            };
+
+            var pipelineDescription = new PipelineDescription
+            {
+                RenderingCreateInfo = rendering,
+                ShaderStages = shaderStages,
+                VertexInput = vertexInput,
+                RasterizationStateCreateInfo = rasterizationState,
+                MultisampleStateCreateInfo = multisampleState,
+                DepthStencilStateCreateInfo = depthStencil,
+                DescriptorSetLayouts = [_imGuiManager.DescriptorSetLayout],
+                PushConstantRanges = [.. pushConstantRanges],
+                ColorBlendStateCreateInfo = colorBlendStateCreateInfo
+            };
+
+            _pipelineManager.AddPipeline("ImGui", pipelineDescription);
         }
     }
 
@@ -522,8 +636,8 @@ public sealed class App : IDisposable
     private void LoadTextures()
     {
         _textureManager = new TextureManager(_physicalDevice.GetFeatures().TextureCompressionBC);
-        
-        var commandBuffer = BeginSingleTimeCommands();
+
+        var commandBuffer = _cmdManager.BeginSingleTimeCommands();
 
         foreach (var fileName in new[]
                  {
@@ -536,7 +650,7 @@ public sealed class App : IDisposable
             UpdateTextureDescriptor(textureId);
         }
 
-        EndSingleTimeCommands(commandBuffer);
+        _cmdManager.EndSingleTimeCommands(ref commandBuffer);
         _textureManager.ClearStagingBuffers();
     }
 
@@ -574,57 +688,70 @@ public sealed class App : IDisposable
 
     private void CreateObjects()
     {
-        var numObjects = 4;
-
-        _meshIds = new MeshId[numObjects];
-        _transforms = new Transform[numObjects];
-        _materialIds = new MaterialId[numObjects];
-
-        // object 1
-        {
-            var objectIndex = 0;
-
-            _meshIds[objectIndex] = _meshManager.GetMeshId("plane");
-            _transforms[objectIndex] = new Transform
+        AddObject(
+            _meshManager.GetMeshId("plane"),
+            new Transform
             {
                 Position = new float3(0.0f, -2.5f, 0.0f),
-                Rotation = floatQuat.CreateFromAxisAngle(float3.UnitX, float.DegreesToRadians(-90.0f)),
+                Rotation = floatQuat.CreateFromAxisAngle(float3.UnitX, Single.DegreesToRadians(-90.0f)),
                 Scale = new float3(10.0f, 10.0f, 1.0f)
-            };
-            _materialIds[objectIndex] = _materialManager.GetMaterialId("brick");
-        }
+            },
+            _materialManager.GetMaterialId("brick")
+        );
+        
+        AddObject(
+            _meshManager.GetMeshId("cube"),
+            new Transform
+            {
+                Position = new float3(0.0f, 5.0f, -1.0f),
+                Rotation = floatQuat.Identity,
+                Scale = new float3(1.0f, 1.0f, 1.0f)
+            },
+            _materialManager.GetMaterialId("wireframe")
+        );
+        
+        AddObject(
+            _meshManager.GetMeshId("viking_room"),
+            new Transform
+            {
+                Position = new float3(0.0f, 1.0f, 0.0f),
+                Rotation = floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
+                Scale = new float3(1.0f, 1.0f, 1.0f)
+            },
+            _materialManager.GetMaterialId("viking_room")
+        );
+        
+        AddObject(
+            _meshManager.GetMeshId("planet"),
+            new Transform
+            {
+                Position = new float3(3.0f, 1.0f, -2.0f),
+                Rotation = floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
+                Scale = new float3(1.0f, 1.0f, 1.0f)
+            },
+            _materialManager.GetMaterialId("statue")
+        );
+        
+        AddObject(
+            _meshManager.GetMeshId("planet"),
+            new Transform
+            {
+                Position = new float3(-2.0f, 1.0f, -2.0f),
+                Rotation = floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
+                Scale = new float3(1.0f, 1.0f, 1.0f)
+            },
+            _materialManager.GetMaterialId("statue")
+        );
+    }
 
-        // object 2
+    private void AddObject(MeshId mesh, Transform transform, MaterialId materialId)
+    {
+        _renderObjects.Add(new RenderObject
         {
-            var objectIndex = 1;
-
-            _meshIds[objectIndex] = _meshManager.GetMeshId("cube");
-            _transforms[objectIndex] = Transform.Identity;
-            _transforms[objectIndex].Position = new float3(0.0f, 5.0f, -1.0f);
-            _materialIds[objectIndex] = _materialManager.GetMaterialId("wireframe");
-        }
-
-        // object 3
-        {
-            var objectIndex = 2;
-
-            _meshIds[objectIndex] = _meshManager.GetMeshId("viking_room");
-            _transforms[objectIndex] = Transform.Identity;
-            _transforms[objectIndex].Position = new float3(0.0f, 1.0f, 0.0f);
-            _transforms[objectIndex].RotateWorld(float3.UnitY, float.DegreesToRadians(-90f));
-            _materialIds[objectIndex] = _materialManager.GetMaterialId("viking_room");
-        }
-
-        // object 4
-        {
-            var objectIndex = 3;
-
-            _meshIds[objectIndex] = _meshManager.GetMeshId("planet");
-            _transforms[objectIndex] = Transform.Identity;
-            _transforms[objectIndex].Position = new float3(3.0f, 1.0f, -2.0f);
-            _transforms[objectIndex].RotateWorld(float3.UnitY, float.DegreesToRadians(-90f));
-            _materialIds[objectIndex] = _materialManager.GetMaterialId("statue");
-        }
+            Mesh = _meshManager.GetGpuMesh(mesh),
+            ModelMatrix = transform.GetModelMatrix(),
+            Material = _materialManager.GetMaterial(materialId)
+        });
     }
 
     public static void TransitionImage(
@@ -637,8 +764,8 @@ public sealed class App : IDisposable
         VkAccessFlags dstAccess,
         VkImageAspectFlags imageAspectFlags,
         CommandBuffer commandBuffer,
-        int mipLevels = 1,
-        int baseMipLevel = 0
+        Int32 mipLevels = 1,
+        Int32 baseMipLevel = 0
     )
     {
         commandBuffer.PipelineBarrier(
@@ -674,7 +801,7 @@ public sealed class App : IDisposable
     {
         VkDescriptorSetLayoutBinding[] bindings =
         [
-            new VkDescriptorSetLayoutBinding()
+            new()
             {
                 Binding = 0,
                 DescriptorType = VkDescriptorType.CombinedImageSampler,
@@ -711,7 +838,7 @@ public sealed class App : IDisposable
 
         VkDescriptorPoolSize[] pools =
         [
-            new VkDescriptorPoolSize
+            new()
             {
                 Type = VkDescriptorType.CombinedImageSampler, DescriptorCount = Constants.MaxTextures
             }
@@ -757,11 +884,11 @@ public sealed class App : IDisposable
 
         ReadOnlySpan<VkWriteDescriptorSet> descriptorWrites =
         [
-            new VkWriteDescriptorSet()
+            new()
             {
                 DstSet = _descriptorSets[0],
                 DstBinding = 0,
-                DstArrayElement = (int)textureId.Value,
+                DstArrayElement = (Int32)textureId.Value,
                 DescriptorCount = 1,
                 DescriptorType = VkDescriptorType.CombinedImageSampler,
                 ImageInfo = &imageInfo
@@ -794,36 +921,8 @@ public sealed class App : IDisposable
         _textureSampler = _device.CreateSampler(samplerInfo, null);
     }
 
-    private CommandBuffer BeginSingleTimeCommands()
-    {
-        var buffer = _device.AllocateCommandBuffer(
-            new VkCommandBufferAllocateInfo
-            {
-                CommandPool = _commandPool,
-                Level = VkCommandBufferLevel.Primary
-            }
-        );
-        buffer.Begin();
-
-        return buffer;
-    }
-
-    private void EndSingleTimeCommands(CommandBuffer buffer)
-    {
-        buffer.End();
-
-        _queue.Submit(
-            null,
-            null,
-            [buffer],
-            null,
-            VkFence.NullHandle
-        );
-        _queue.WaitIdle();
-    }
-
-    public static void CopyBufferToImage(CommandBuffer commandBuffer, VkBuffer buffer, ImageEx image, int width,
-        int height)
+    public static void CopyBufferToImage(CommandBuffer commandBuffer, VkBuffer buffer, ImageEx image, Int32 width,
+        Int32 height)
     {
         var region = new VkBufferImageCopy
         {
@@ -838,9 +937,9 @@ public sealed class App : IDisposable
         commandBuffer.CopyBufferToImage(buffer, image.VkImage, VkImageLayout.TransferDstOptimal, [region]);
     }
 
-    private static byte[] LoadShader(string filename)
+    private static Byte[] LoadShader(String filename)
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "shaders", filename);
+        var path = Path.Combine(AppContext.BaseDirectory, "shaders", filename);
 
         return File.ReadAllBytes(path);
     }
@@ -848,6 +947,8 @@ public sealed class App : IDisposable
     public void Dispose()
     {
         _device.WaitIdle();
+
+        _imGuiManager.Dispose();
 
         _renderer.Dispose();
         _device.DestroyDescriptorPool(_descriptorPool, null);

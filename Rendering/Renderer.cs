@@ -4,7 +4,7 @@ using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.Rendering;
 
 public readonly struct RenderObject
 {
@@ -33,64 +33,64 @@ public sealed class Renderer : IDisposable
     private readonly VkSurfaceKHR _surface;
     private readonly GlfwWindow _window;
     private readonly VmaAllocator _allocator;
-    private readonly VkCommandPool _commandPool;
     private readonly Queue _queue;
-    private PipelineManager _pipelineManager;
-    private VkDescriptorSet[] _descriptorSets;
+    private readonly VkDescriptorSet[] _descriptorSets;
+    private readonly ImGuiManager _imGuiManager;
+
+    private readonly FrameResources[] _frameResources = new FrameResources[Constants.MaxFramesInFlight];
 
     private VkSemaphore[] _renderFinished;
-    private FrameResources[] _frameResources = new FrameResources[Constants.MaxFramesInFlight];
 
+    private readonly List<IRenderPass> _renderPasses;
+
+    private VkSwapchainKHR _swapchain;
     private VkImage[] _swapchainImages;
     private VkImageView[] _swapchainImageViews;
 
-    private VkSwapchainKHR _swapchain;
-    public VkSurfaceFormatKHR SwapchainFormat { get; private set; }
+    private Boolean _isFramebufferResized = false;
+    private Int32 _frameIndex = 0;
 
-    private VkExtent2D _extent;
-
-    private bool _isFramebufferResized = false;
-
-    private uint _frameIndex = 0;
+    public VkExtent2D Extent { get; private set; }
 
     public VkSampleCountFlags MsaaSamples { get; }
 
-    private List<IRenderPass> _renderPasses;
+    public VkSurfaceFormatKHR SwapchainFormat { get; private set; }
 
     public Renderer(DeviceEx device, PhysicalDevice physicalDevice, VkSurfaceKHR surface,
         GlfwWindow window, VmaAllocator allocator, VkCommandPool commandPool, Queue queue,
-        PipelineManager pipelineManager, VkDescriptorSet[] descriptorSets)
+        PipelineManager pipelineManager, VkDescriptorSet[] descriptorSets, ImGuiManager imGuiManager)
     {
         _device = device;
         _physicalDevice = physicalDevice;
         _surface = surface;
         _window = window;
         _allocator = allocator;
-        _commandPool = commandPool;
         _queue = queue;
-        _pipelineManager = pipelineManager;
         _descriptorSets = descriptorSets;
+        _imGuiManager = imGuiManager;
 
-        _renderPasses = [new OpaquePass(_pipelineManager)];
+        _renderPasses =
+        [
+            new OpaquePass(pipelineManager),
+            new ImGuiPass(_imGuiManager, pipelineManager)
+        ];
 
-        MsaaSamples = (VkSampleCountFlags)int.Min(Constants.DefaultMsaa, (int)GetMaxSampleCount());
+        MsaaSamples = (VkSampleCountFlags)Int32.Min(Constants.DefaultMsaa, (Int32)GetMaxSampleCount());
 
         for (var i = 0; i < Constants.MaxFramesInFlight; i++)
         {
             _frameResources[i].ImageAvailable = _device.CreateSemaphore(new VkSemaphoreCreateInfo(), null);
             _frameResources[i].Fence = _device.CreateFence(VkFenceCreateFlags.SignaledBit, null);
-
             _frameResources[i].CommandBuffer = _device.AllocateCommandBuffer(
                 new VkCommandBufferAllocateInfo
                 {
-                    CommandPool = _commandPool,
+                    CommandPool = commandPool,
                     Level = VkCommandBufferLevel.Primary
                 }
             );
         }
 
         CreateSwapchain();
-
         CreateColorResources();
         CreateDepthResources();
     }
@@ -99,9 +99,9 @@ public sealed class Renderer : IDisposable
     {
         var capabilities = _physicalDevice.GetSurfaceCapabilitiesKHR(_surface);
 
-        _extent = capabilities.CurrentExtent;
-        if (_extent.Width == -1 && _extent.Height == -1)
-            _extent = new VkExtent2D(
+        Extent = capabilities.CurrentExtent;
+        if (Extent is { Width: -1, Height: -1 })
+            Extent = new VkExtent2D(
                 Math.Clamp(_window.FramebufferSize.X, capabilities.MinImageExtent.Width,
                     capabilities.MaxImageExtent.Width),
                 Math.Clamp(_window.FramebufferSize.Y, capabilities.MinImageExtent.Height,
@@ -120,7 +120,7 @@ public sealed class Renderer : IDisposable
             VkCompositeAlphaFlagsKHR.InheritBitKHR
         ];
         var compositeAlpha = alphaModes.First(mode => (capabilities.SupportedCompositeAlpha & mode) != 0);
-        
+
         SwapchainFormat = ChooseSurfaceFormat();
 
         _swapchain = _device.CreateSwapchainKHR(
@@ -130,7 +130,7 @@ public sealed class Renderer : IDisposable
                 MinImageCount = imageCount,
                 ImageFormat = SwapchainFormat.Format,
                 ImageColorSpace = SwapchainFormat.ColorSpace,
-                ImageExtent = _extent,
+                ImageExtent = Extent,
                 ImageArrayLayers = 1,
                 ImageUsage = VkImageUsageFlags.ColorAttachmentBit,
                 ImageSharingMode = VkSharingMode.Exclusive,
@@ -148,8 +148,7 @@ public sealed class Renderer : IDisposable
         _swapchainImageViews = new VkImageView[_swapchainImages.Length];
         CreateSwapchainImageViews();
 
-        _renderFinished = _swapchainImages.Select(_ => _device.CreateSemaphore(new VkSemaphoreCreateInfo(), null))
-            .ToArray();
+        _renderFinished = [.. _swapchainImages.Select(_ => _device.CreateSemaphore(new VkSemaphoreCreateInfo(), null))];
     }
 
     private VkSurfaceFormatKHR ChooseSurfaceFormat()
@@ -160,7 +159,7 @@ public sealed class Renderer : IDisposable
 
         if (surfaceFormats.IsEmpty)
             throw new InvalidOperationException("No surface formats available.");
-        
+
         foreach (var format in surfaceFormats)
         {
             if (format is { Format: VkFormat.B8G8R8A8SRGB, ColorSpace: VkColorSpaceKHR.SRGBNonlinearKHR })
@@ -215,7 +214,7 @@ public sealed class Renderer : IDisposable
 
     private void RecreateSwapchain()
     {
-        int2 size = _window.FramebufferSize;
+        var size = _window.FramebufferSize;
         while ((size.X == 0 || size.Y == 0) && !_window.ShouldClose)
         {
             size = _window.FramebufferSize;
@@ -229,7 +228,6 @@ public sealed class Renderer : IDisposable
 
         CleanupSwapchain();
         CreateSwapchain();
-
         CreateColorResources();
         CreateDepthResources();
     }
@@ -243,8 +241,8 @@ public sealed class Renderer : IDisposable
             ImageFormat = SwapchainFormat.Format,
             ImageExtent = new VkExtent3D
             {
-                Width = _extent.Width,
-                Height = _extent.Height,
+                Width = Extent.Width,
+                Height = Extent.Height,
                 Depth = 1
             },
             ImageMipLevels = 1,
@@ -263,7 +261,7 @@ public sealed class Renderer : IDisposable
             LevelCount = 1
         };
 
-        for (int i = 0; i < _frameResources.Length; i++)
+        for (var i = 0; i < _frameResources.Length; i++)
         {
             var colorImage = _allocator.CreateImage(colorInfo);
             _frameResources[i].ColorImage = colorImage;
@@ -281,8 +279,8 @@ public sealed class Renderer : IDisposable
             ImageFormat = VkFormat.D32SFloat,
             ImageExtent = new VkExtent3D
             {
-                Width = _extent.Width,
-                Height = _extent.Height,
+                Width = Extent.Width,
+                Height = Extent.Height,
                 Depth = 1
             },
             ImageMipLevels = 1,
@@ -301,7 +299,7 @@ public sealed class Renderer : IDisposable
             LevelCount = 1
         };
 
-        for (int i = 0; i < _frameResources.Length; i++)
+        for (var i = 0; i < _frameResources.Length; i++)
         {
             var depthImage = _allocator.CreateImage(depthInfo);
             _frameResources[i].DepthImage = depthImage;
@@ -317,46 +315,53 @@ public sealed class Renderer : IDisposable
         var counts = properties.Limits.FramebufferColorSampleCounts &
                      properties.Limits.FramebufferDepthSampleCounts;
 
-        if ((int)(counts & VkSampleCountFlags._64Bit) != 0) return VkSampleCountFlags._64Bit;
-        if ((int)(counts & VkSampleCountFlags._32Bit) != 0) return VkSampleCountFlags._32Bit;
-        if ((int)(counts & VkSampleCountFlags._16Bit) != 0) return VkSampleCountFlags._16Bit;
-        if ((int)(counts & VkSampleCountFlags._8Bit) != 0) return VkSampleCountFlags._8Bit;
-        if ((int)(counts & VkSampleCountFlags._4Bit) != 0) return VkSampleCountFlags._4Bit;
-        if ((int)(counts & VkSampleCountFlags._2Bit) != 0) return VkSampleCountFlags._2Bit;
+        if ((Int32)(counts & VkSampleCountFlags._64Bit) != 0) return VkSampleCountFlags._64Bit;
+        if ((Int32)(counts & VkSampleCountFlags._32Bit) != 0) return VkSampleCountFlags._32Bit;
+        if ((Int32)(counts & VkSampleCountFlags._16Bit) != 0) return VkSampleCountFlags._16Bit;
+        if ((Int32)(counts & VkSampleCountFlags._8Bit) != 0) return VkSampleCountFlags._8Bit;
+        if ((Int32)(counts & VkSampleCountFlags._4Bit) != 0) return VkSampleCountFlags._4Bit;
+        if ((Int32)(counts & VkSampleCountFlags._2Bit) != 0) return VkSampleCountFlags._2Bit;
 
         return VkSampleCountFlags._1Bit;
     }
 
     public void DrawFrame(ReadOnlySpan<RenderObject> renderObjects, float4x4 viewProj)
     {
-        BeginFrame(out var imageIndex);
+        if (!BeginFrame(out var imageIndex, out var isSuboptimal)) return;
         RecordFrame(renderObjects, viewProj, imageIndex);
         SubmitFrame(imageIndex);
-        PresentFrame(imageIndex);
+        PresentFrame(imageIndex, isSuboptimal);
 
         _frameIndex = (_frameIndex + 1) % Constants.MaxFramesInFlight;
     }
 
-    private void BeginFrame(out int imageIndex)
+    private Boolean BeginFrame(out Int32 imageIndex, out Boolean isSuboptimal)
     {
         _device.WaitForFence(_frameResources[_frameIndex].Fence, -1);
 
         var result = _device.AcquireNextImageKHR(_swapchain, -1, _frameResources[_frameIndex].ImageAvailable,
             VkFence.NullHandle,
-            out imageIndex);
+            out imageIndex
+        );
 
         if (result == VkResult.ErrorOutOfDateKHR)
         {
             RecreateSwapchain();
-            return;
+            isSuboptimal = false;
+            return false;
         }
 
-        _device.ResetFences([_frameResources[_frameIndex].Fence]);
+        isSuboptimal = (result == VkResult.SuboptimalKHR);
 
+        if (result is not (VkResult.Success or VkResult.SuboptimalKHR))
+            throw new InvalidOperationException($"Failed to acquire swapchain image: {result}");
+        
         _frameResources[_frameIndex].CommandBuffer.Reset();
+
+        return true;
     }
 
-    private void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, float4x4 viewProj, int imageIndex)
+    private unsafe void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, float4x4 viewProj, int imageIndex)
     {
         var resources = _frameResources[_frameIndex];
 
@@ -368,18 +373,21 @@ public sealed class Renderer : IDisposable
             DepthImage = resources.DepthImage,
             DepthImageView = resources.DepthImageView,
             ResolveImageView = _swapchainImageViews[imageIndex],
-            Extent = _extent,
+            Extent = Extent,
             ViewProj = viewProj,
-            GlobalDescriptorSets = _descriptorSets
+            GlobalDescriptorSets = _descriptorSets,
+            FrameIndex = _frameIndex
         };
 
         resources.CommandBuffer.Begin(VkCommandBufferUsageFlags.OneTimeSubmitBit);
+
+        _imGuiManager.RenderFrame(_frameIndex);
 
         App.TransitionImage(
             _swapchainImages[imageIndex],
             VkImageLayout.Undefined,
             VkImageLayout.ColorAttachmentOptimal,
-            VkPipelineStageFlags.ColorAttachmentOutputBit,
+            VkPipelineStageFlags.TopOfPipeBit,
             VkPipelineStageFlags.ColorAttachmentOutputBit,
             VkAccessFlags.None,
             VkAccessFlags.ColorAttachmentWriteBit,
@@ -387,10 +395,68 @@ public sealed class Renderer : IDisposable
             resources.CommandBuffer
         );
 
+        App.TransitionImage(
+            context.ColorImage.VkImage,
+            VkImageLayout.Undefined,
+            VkImageLayout.ColorAttachmentOptimal,
+            VkPipelineStageFlags.TopOfPipeBit,
+            VkPipelineStageFlags.ColorAttachmentOutputBit,
+            VkAccessFlags.None,
+            VkAccessFlags.ColorAttachmentWriteBit,
+            VkImageAspectFlags.ColorBit,
+            context.CommandBuffer
+        );
+
+        App.TransitionImage(
+            context.DepthImage.VkImage,
+            VkImageLayout.Undefined,
+            VkImageLayout.DepthAttachmentOptimal,
+            VkPipelineStageFlags.TopOfPipeBit,
+            VkPipelineStageFlags.EarlyFragmentTestsBit | VkPipelineStageFlags.LateFragmentTestsBit,
+            VkAccessFlags.None,
+            VkAccessFlags.DepthStencilAttachmentWriteBit,
+            VkImageAspectFlags.DepthBit,
+            context.CommandBuffer
+        );
+
+        var colorAttachment = new VkRenderingAttachmentInfo
+        {
+            ImageView = context.ColorImageView.VkImageView,
+            ImageLayout = VkImageLayout.ColorAttachmentOptimal,
+            ResolveMode = VkResolveModeFlags.AverageBit,
+            ResolveImageView = context.ResolveImageView,
+            ResolveImageLayout = VkImageLayout.ColorAttachmentOptimal,
+            LoadOp = VkAttachmentLoadOp.Clear,
+            StoreOp = VkAttachmentStoreOp.Store,
+            ClearValue = new VkClearColorValue { Float32 = new float4(0.01f, 0.01f, 0.01f, 1.0f) }
+        };
+
+        var depthAttachment = new VkRenderingAttachmentInfo
+        {
+            ImageView = context.DepthImageView.VkImageView,
+            ImageLayout = VkImageLayout.DepthAttachmentOptimal,
+            LoadOp = VkAttachmentLoadOp.Clear,
+            StoreOp = VkAttachmentStoreOp.Store,
+            ClearValue = new VkClearDepthStencilValue { Depth = 1.0f, Stencil = 0 }
+        };
+
+        resources.CommandBuffer.BeginRendering(
+            new VkRenderingInfo
+            {
+                RenderArea = new VkRect2D(context.Extent),
+                LayerCount = 1,
+                ColorAttachmentCount = 1,
+                ColorAttachments = &colorAttachment,
+                DepthAttachment = &depthAttachment
+            }
+        );
+
         foreach (var pass in _renderPasses)
         {
             pass.Record(context, renderObjects);
         }
+
+        resources.CommandBuffer.EndRendering();
 
         App.TransitionImage(
             _swapchainImages[imageIndex],
@@ -407,18 +473,22 @@ public sealed class Renderer : IDisposable
         resources.CommandBuffer.End();
     }
 
-    private void SubmitFrame(int imageIndex)
+    private void SubmitFrame(Int32 imageIndex)
     {
+        var resources = _frameResources[_frameIndex];
+        
+        _device.ResetFences([resources.Fence]);
+
         _queue.Submit(
-            [_frameResources[_frameIndex].ImageAvailable],
+            [resources.ImageAvailable],
             [VkPipelineStageFlags.ColorAttachmentOutputBit],
-            [_frameResources[_frameIndex].CommandBuffer],
+            [resources.CommandBuffer],
             [_renderFinished[imageIndex]],
-            _frameResources[_frameIndex].Fence
+            resources.Fence
         );
     }
 
-    private unsafe void PresentFrame(int imageIndex)
+    private unsafe void PresentFrame(Int32 imageIndex, Boolean isSuboptimal)
     {
         var swapchain = _swapchain;
         var signalSemaphore = _renderFinished[imageIndex];
@@ -434,14 +504,17 @@ public sealed class Renderer : IDisposable
             }
         );
 
-        if (_isFramebufferResized || result is VkResult.ErrorOutOfDateKHR or VkResult.SuboptimalKHR)
+        if (result is not (VkResult.Success or VkResult.SuboptimalKHR or VkResult.ErrorOutOfDateKHR))
+            throw new InvalidOperationException($"Failed to present swapchain image: {result}");
+
+        if (_isFramebufferResized || isSuboptimal || result is VkResult.ErrorOutOfDateKHR or VkResult.SuboptimalKHR)
         {
             _isFramebufferResized = false;
             RecreateSwapchain();
         }
     }
 
-    public void SetFramebufferResized()
+    public void OnFramebufferResize()
     {
         _isFramebufferResized = true;
     }
