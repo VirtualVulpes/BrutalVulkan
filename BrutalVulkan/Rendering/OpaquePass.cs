@@ -14,7 +14,7 @@ public sealed class OpaquePass : IRenderPass
         _pipelineManager = pipelineManager;
     }
 
-    public void Record(in RenderContext context, ReadOnlySpan<RenderObject> renderObjects)
+    public void Record(in RenderContext context, ReadOnlySpan<GpuRenderObject> renderObjects)
     {
         context.CommandBuffer.SetViewport(0, [
             new VkViewport

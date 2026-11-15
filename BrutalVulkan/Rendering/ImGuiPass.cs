@@ -17,7 +17,7 @@ public class ImGuiPass : IRenderPass
         _pipelineManager = pipelineManager;
     }
     
-    public void Record(in RenderContext context, ReadOnlySpan<RenderObject> renderObjects)
+    public void Record(in RenderContext context, ReadOnlySpan<GpuRenderObject> renderObjects)
     {
         var drawData = ImGui.GetDrawData();
         if (!drawData.Valid || drawData.CmdListsCount == 0) return;

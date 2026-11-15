@@ -9,10 +9,18 @@ namespace BrutalVulkan.Rendering;
 
 public readonly struct RenderObject
 {
+    public MeshId MeshId { get; init; }
+    public float4x4 ModelMatrix { get; init; }
+    public MaterialId MaterialId { get; init; }
+}
+
+public readonly struct GpuRenderObject
+{
     public GpuMesh Mesh { get; init; }
     public float4x4 ModelMatrix { get; init; }
     public Material Material { get; init; }
 }
+
 
 public sealed class Renderer : IDisposable
 {
@@ -35,21 +43,25 @@ public sealed class Renderer : IDisposable
     private readonly GlfwWindow _window;
     private readonly VmaAllocator _allocator;
     private readonly Queue _queue;
-    private readonly VkDescriptorSet[] _descriptorSets;
-    private readonly ImGuiManager _imGuiManager;
+    
+    private  VkDescriptorSet[] _descriptorSets;
+    private  ImGuiManager _imGuiManager;
+    private  MeshManager _meshManager;
+    private  MaterialManager _materialManager;
+    private  List<IRenderPass> _renderPasses;
 
     private readonly FrameResources[] _frameResources = new FrameResources[Constants.MaxFramesInFlight];
 
     private VkSemaphore[] _renderFinished;
-
-    private readonly List<IRenderPass> _renderPasses;
-
+    
     private VkSwapchainKHR _swapchain;
     private VkImage[] _swapchainImages;
     private VkImageView[] _swapchainImageViews;
 
     private Boolean _isFramebufferResized = false;
     private Int32 _frameIndex = 0;
+
+    private GpuRenderObject[] _gpuRenderObjects = [];
 
     public VkExtent2D Extent { get; private set; }
 
@@ -58,8 +70,7 @@ public sealed class Renderer : IDisposable
     public VkSurfaceFormatKHR SwapchainFormat { get; private set; }
 
     public Renderer(DeviceEx device, PhysicalDevice physicalDevice, VkSurfaceKHR surface,
-        GlfwWindow window, VmaAllocator allocator, VkCommandPool commandPool, Queue queue,
-        PipelineManager pipelineManager, VkDescriptorSet[] descriptorSets, ImGuiManager imGuiManager)
+        GlfwWindow window, VmaAllocator allocator, VkCommandPool commandPool, Queue queue)
     {
         _device = device;
         _physicalDevice = physicalDevice;
@@ -67,14 +78,6 @@ public sealed class Renderer : IDisposable
         _window = window;
         _allocator = allocator;
         _queue = queue;
-        _descriptorSets = descriptorSets;
-        _imGuiManager = imGuiManager;
-
-        _renderPasses =
-        [
-            new OpaquePass(pipelineManager),
-            new ImGuiPass(_imGuiManager, pipelineManager)
-        ];
 
         MsaaSamples = (VkSampleCountFlags)Int32.Min(Constants.DefaultMsaa, (Int32)GetMaxSampleCount());
 
@@ -94,6 +97,20 @@ public sealed class Renderer : IDisposable
         CreateSwapchain();
         CreateColorResources();
         CreateDepthResources();
+    }
+
+    public void Initialize(PipelineManager pipelineManager, VkDescriptorSet[] descriptorSets, ImGuiManager imGuiManager, MeshManager meshManager, MaterialManager materialManager)
+    {
+        _descriptorSets = descriptorSets;
+        _imGuiManager = imGuiManager;
+        _meshManager = meshManager;
+        _materialManager = materialManager;
+
+        _renderPasses =
+        [
+            new OpaquePass(pipelineManager),
+            new ImGuiPass(_imGuiManager, pipelineManager)
+        ];
     }
 
     private void CreateSwapchain()
@@ -451,10 +468,23 @@ public sealed class Renderer : IDisposable
                 DepthAttachment = &depthAttachment
             }
         );
+        
+        if (_gpuRenderObjects.Length < renderObjects.Length) 
+            Array.Resize(ref _gpuRenderObjects, renderObjects.Length);
+
+        for (var i = 0; i < renderObjects.Length; i++)
+        {
+            _gpuRenderObjects[i] = new GpuRenderObject
+            {
+                Material = _materialManager.GetMaterial(renderObjects[i].MaterialId),
+                Mesh = _meshManager.GetGpuMesh(renderObjects[i].MeshId),
+                ModelMatrix = renderObjects[i].ModelMatrix
+            };
+        }
 
         foreach (var pass in _renderPasses)
         {
-            pass.Record(context, renderObjects);
+            pass.Record(context, [.. _gpuRenderObjects]);
         }
 
         resources.CommandBuffer.EndRendering();

@@ -9,6 +9,8 @@ using Brutal.Strings;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
+using BrutalVulkan.ECS;
+using BrutalVulkan.ECS.Systems;
 using BrutalVulkan.Materials;
 using BrutalVulkan.Rendering;
 
@@ -50,8 +52,10 @@ public sealed class App : IDisposable
     private ImGuiManager _imGuiManager;
 
     private CommandBufferManager _cmdManager;
-
-    private readonly List<RenderObject> _renderObjects = [];
+    
+    private World _world;
+    private SystemManager _systemManager;
+    private readonly RenderSystem _renderSystem;
 
     public App()
     {
@@ -75,6 +79,12 @@ public sealed class App : IDisposable
         _camera = new Camera();
 
         InitVulkan();
+        
+        _world = new World();
+        _systemManager = new SystemManager();
+        _renderSystem = _systemManager.AddSystem(new RenderSystem(_world));
+                    
+        CreateEntities();
     }
 
     private void InitGlfw()
@@ -201,8 +211,7 @@ public sealed class App : IDisposable
         _imGuiManager = new ImGuiManager(_allocator, _device,
             new float2(_window.Width, _window.Height), _cmdManager, _window, _inputManager);
 
-        _renderer = new Renderer(_device, _physicalDevice, _surface, _window, _allocator, _commandPool, _queue,
-            _pipelineManager, _descriptorSets, _imGuiManager);
+        _renderer = new Renderer(_device, _physicalDevice, _surface, _window, _allocator, _commandPool, _queue);
 
         CreatePipelines();
 
@@ -210,13 +219,14 @@ public sealed class App : IDisposable
         LoadTextures();
         LoadModels();
         CreateMaterials();
-        CreateObjects();
+        
+        _renderer.Initialize(_pipelineManager, _descriptorSets, _imGuiManager, _meshManager, _materialManager);
     }
 
     public void Run()
     {
         var last = Stopwatch.GetTimestamp();
-
+        
         while (!_window.ShouldClose)
         {
             var now = Stopwatch.GetTimestamp();
@@ -226,6 +236,8 @@ public sealed class App : IDisposable
             _inputManager.Update();
 
             Glfw.PollEvents();
+
+            _systemManager.Update(dt);
 
             if (_inputManager.IsKeyPressed(GlfwKey.Escape))
                 _window.ShouldClose = true;
@@ -237,6 +249,7 @@ public sealed class App : IDisposable
                     break;
                 case InputMode.CameraControl:
                 {
+                    // camera movement
                     var movement = float3.Zero;
                     var speed = 5.0f;
                     if (_inputManager.IsKeyDown(GlfwKey.W))
@@ -252,10 +265,12 @@ public sealed class App : IDisposable
                     if (_inputManager.IsKeyDown(GlfwKey.LeftControl))
                         movement -= float3.UnitY;
                     _camera.MoveRelative(float3.NormalizeOrZero(movement) * dt * speed);
-
+                    
+                    // camera rotation
                     var mouseDelta = _inputManager.MouseDelta;
                     var sensitivity = 0.001f;
                     _camera.Rotate((Single)mouseDelta.X * sensitivity, -(Single)mouseDelta.Y * sensitivity);
+
                     break;
                 }
                 case InputMode.UiInteraction:
@@ -274,7 +289,7 @@ public sealed class App : IDisposable
 
             CreateUI();
 
-            _renderer.DrawFrame([.. _renderObjects], _camera.GetView() * _camera.GetProjection());
+            _renderer.DrawFrame(_renderSystem.BuildRenderObjects(), _camera.GetView() * _camera.GetProjection());
         }
     }
 
@@ -806,72 +821,63 @@ public sealed class App : IDisposable
             });
     }
 
-    private void CreateObjects()
+    private void CreateEntities()
     {
-        AddObject(
-            _meshManager.GetMeshId("plane"),
-            new Transform
+        {
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Transform
             {
                 Position = new float3(0.0f, -2.5f, 0.0f),
                 Rotation = floatQuat.CreateFromAxisAngle(float3.UnitX, Single.DegreesToRadians(-90.0f)),
                 Scale = new float3(10.0f, 10.0f, 1.0f)
-            },
-            _materialManager.GetMaterialId("brick")
-        );
-
-        AddObject(
-            _meshManager.GetMeshId("cube"),
-            new Transform
+            });
+            _world.AddComponent(entity, _meshManager.GetMeshId("plane"));
+            _world.AddComponent(entity, _materialManager.GetMaterialId("brick"));
+        }
+        {
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Transform
             {
                 Position = new float3(0.0f, 5.0f, -1.0f),
                 Rotation = floatQuat.Identity,
                 Scale = new float3(1.0f, 1.0f, 1.0f)
-            },
-            _materialManager.GetMaterialId("statue")
-        );
-
-        AddObject(
-            _meshManager.GetMeshId("viking_room"),
-            new Transform
+            });
+            _world.AddComponent(entity, _meshManager.GetMeshId("cube"));
+            _world.AddComponent(entity, _materialManager.GetMaterialId("statue"));
+        }
+        {
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Transform
             {
                 Position = new float3(0.0f, 1.0f, 0.0f),
                 Rotation = floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
                 Scale = new float3(1.0f, 1.0f, 1.0f)
-            },
-            _materialManager.GetMaterialId("viking_room")
-        );
-
-        AddObject(
-            _meshManager.GetMeshId("planet"),
-            new Transform
+            });
+            _world.AddComponent(entity, _meshManager.GetMeshId("viking_room"));
+            _world.AddComponent(entity, _materialManager.GetMaterialId("viking_room"));
+        }
+        {
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Transform
             {
                 Position = new float3(3.0f, 1.0f, -2.0f),
                 Rotation = floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
                 Scale = new float3(1.0f, 1.0f, 1.0f)
-            },
-            _materialManager.GetMaterialId("flat color")
-        );
-
-        AddObject(
-            _meshManager.GetMeshId("planet"),
-            new Transform
+            });
+            _world.AddComponent(entity, _meshManager.GetMeshId("planet"));
+            _world.AddComponent(entity, _materialManager.GetMaterialId("flat color"));
+        }
+        {
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Transform
             {
                 Position = new float3(-2.0f, 1.0f, -2.0f),
                 Rotation = floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
                 Scale = new float3(1.0f, 1.0f, 1.0f)
-            },
-            _materialManager.GetMaterialId("wireframe")
-        );
-    }
-
-    private void AddObject(MeshId mesh, Transform transform, MaterialId materialId)
-    {
-        _renderObjects.Add(new RenderObject
-        {
-            Mesh = _meshManager.GetGpuMesh(mesh),
-            ModelMatrix = transform.GetModelMatrix(),
-            Material = _materialManager.GetMaterial(materialId)
-        });
+            });
+            _world.AddComponent(entity, _meshManager.GetMeshId("planet"));
+            _world.AddComponent(entity, _materialManager.GetMaterialId("wireframe"));
+        }
     }
 
     public static void TransitionImage(
@@ -1068,9 +1074,10 @@ public sealed class App : IDisposable
     {
         _device.WaitIdle();
 
+        _renderer.Dispose();
+
         _imGuiManager.Dispose();
 
-        _renderer.Dispose();
         _pipelineManager.Dispose();
         _device.DestroyDescriptorPool(_descriptorPool, null);
         _device.DestroyDescriptorSetLayout(_descriptorSetLayout, null);

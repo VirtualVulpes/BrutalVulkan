@@ -26,5 +26,5 @@ public readonly struct RenderContext
 
 public interface IRenderPass
 {
-    public void Record(in RenderContext context, ReadOnlySpan<RenderObject> renderObjects);
+    public void Record(in RenderContext context, ReadOnlySpan<GpuRenderObject> renderObjects);
 }

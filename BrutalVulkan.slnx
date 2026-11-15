@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BrutalVulkan.Tests/BrutalVulkan.Tests.csproj" />
+  <Project Path="BrutalVulkan/BrutalVulkan.csproj" />
+</Solution>
