@@ -1,65 +1,127 @@
 using System.Collections;
 using Brutal.GlfwApi;
+using Brutal.ImGuiApi;
 using Brutal.Numerics;
 
 namespace BrutalVulkan;
 
+public enum InputMode
+{
+    CameraControl,
+    UiInteraction
+}
+
 public sealed class InputManager : IDisposable
 {
     private readonly GlfwWindow _window;
-    
-    private readonly BitArray _actions = new((int)GlfwKey.Last);
-    private readonly BitArray _prevActions = new((int)GlfwKey.Last);
 
+    private readonly BitArray _keyActions = new((Int32)GlfwKey.Last);
+    private readonly BitArray _prevKeyActions = new((Int32)GlfwKey.Last);
+
+    private readonly BitArray _mouseActions = new((Int32)GlfwMouseButton.Last);
+    private readonly BitArray _prevMouseActions = new((Int32)GlfwMouseButton.Last);
+
+    private Boolean _resetMouseDelta;
+    
     public double2 MousePos { get; private set; } = double2.Zero;
     public double2 MouseDelta { get; private set; } = double2.Zero;
+
+    public InputMode InputMode { get; private set; } = InputMode.CameraControl;
 
     public InputManager(GlfwWindow window)
     {
         _window = window;
-        
+
         _window.OnKey += OnKey;
-        _window.OnCursorPos += OnCursor;
+        _window.OnCursorPos += OnCursorPos;
+        _window.OnMouseButton += OnMouseButton;
     }
 
-    private void OnKey(GlfwWindow window, GlfwKey key, int scancode, GlfwKeyAction action, GlfwModifier mod)
+    private void OnKey(GlfwWindow window, GlfwKey key, Int32 scancode, GlfwKeyAction action, GlfwModifier mod)
     {
         if (key == GlfwKey.Unknown || action == GlfwKeyAction.Repeat) return;
-        _actions[(int)key] = (action == GlfwKeyAction.Press);
+        _keyActions[(Int32)key] = (action == GlfwKeyAction.Press);
     }
 
-    private void OnCursor(GlfwWindow window, double2 pos)
+    private void OnCursorPos(GlfwWindow window, double2 pos)
     {
-        MouseDelta += pos - MousePos;
+        if (_resetMouseDelta)
+        {
+            MouseDelta = double2.Zero;
+            _resetMouseDelta = false;
+        }
+        else
+        {
+            MouseDelta += pos - MousePos;
+        }
         MousePos = pos;
     }
 
-    public bool IsKeyDown(GlfwKey key)
+    private void OnMouseButton(GlfwWindow window, GlfwMouseButton button, GlfwButtonAction action, GlfwModifier mods)
     {
-        return _actions[(int)key];
+        _mouseActions[(Int32)button] = (action == GlfwButtonAction.Press);
     }
 
-    public bool IsKeyPressed(GlfwKey key)
+    public Boolean IsKeyDown(GlfwKey key)
     {
-        return _actions[(int)key] && !_prevActions[(int)key];
+        return _keyActions[(Int32)key];
     }
 
-    public bool IsKeyReleased(GlfwKey key)
+    public Boolean IsKeyPressed(GlfwKey key)
     {
-        return !_actions[(int)key] && _prevActions[(int)key];
+        return _keyActions[(Int32)key] && !_prevKeyActions[(Int32)key];
+    }
+
+    public Boolean IsKeyReleased(GlfwKey key)
+    {
+        return !_keyActions[(Int32)key] && _prevKeyActions[(Int32)key];
+    }
+
+    public Boolean IsMouseButtonPressed(GlfwMouseButton button)
+    {
+        return _mouseActions[(Int32)button] && !_prevMouseActions[(Int32)button];
     }
 
     // call before Glfw.PollEvents()
     public void Update()
     {
-        _prevActions.SetAll(false);
-        _prevActions.Or(_actions);
+        _prevKeyActions.SetAll(false);
+        _prevKeyActions.Or(_keyActions);
+        
+        _prevMouseActions.SetAll(false);
+        _prevMouseActions.Or(_mouseActions);
         MouseDelta = double2.Zero;
+    }
+
+    public void SetInputMode(InputMode inputMode)
+    {
+        var io = ImGui.GetIO();
+        switch (inputMode)
+        {
+            case InputMode.CameraControl:
+                Glfw.PInvoke.SetInputMode(_window, (Int32)GlfwInputMode.Cursor, (Int32)GlfwCursorMode.Disabled);
+                io.ConfigFlags |= ImGuiConfigFlags.NoMouse | ImGuiConfigFlags.NoMouseCursorChange;
+                break;
+            case InputMode.UiInteraction:
+                Glfw.PInvoke.SetInputMode(_window, (Int32)GlfwInputMode.Cursor, (Int32)GlfwCursorMode.Normal);
+                io.ConfigFlags &= ~(ImGuiConfigFlags.NoMouse | ImGuiConfigFlags.NoMouseCursorChange);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(inputMode), inputMode, null);
+        }
+        
+        InputMode = inputMode;
+
+        _resetMouseDelta = true;
     }
 
     public void Dispose()
     {
         _window.OnKey -= OnKey;
-        _window.OnCursorPos -= OnCursor;
+        _window.OnCursorPos -= OnCursorPos;
+        _window.OnMouseButton -= OnMouseButton;
     }
+
+    public static Boolean IsImGuiCapturingKeyboard() => ImGui.GetIO().WantCaptureKeyboard;
+    public static Boolean IsImGuiCapturingMouse() => ImGui.GetIO().WantCaptureMouse;
 }

@@ -1,4 +1,5 @@
 using Brutal;
+using Brutal.GlfwApi;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
@@ -22,6 +23,8 @@ public sealed class ImGuiManager : IDisposable
     private readonly VmaAllocator _allocator;
     private readonly DeviceEx _device;
     private readonly CommandBufferManager _cmdManager;
+    private readonly GlfwWindow _window;
+    private readonly InputManager _inputManager;
 
     private DescriptorPoolEx _descriptorPool;
     
@@ -34,11 +37,13 @@ public sealed class ImGuiManager : IDisposable
     public BufferEx GetIndexBuffer(Int32 frameIndex)
         => _indexBuffers[frameIndex];
 
-    public ImGuiManager(VmaAllocator allocator, DeviceEx device, float2 displaySize, CommandBufferManager cmdManager)
+    public ImGuiManager(VmaAllocator allocator, DeviceEx device, float2 displaySize, CommandBufferManager cmdManager, GlfwWindow window, InputManager inputManager)
     {
         _allocator = allocator;
         _device = device;
         _cmdManager = cmdManager;
+        _window = window;
+        _inputManager = inputManager;
 
         _context = ImGui.CreateContext();
         if (_context.IsNull())
@@ -49,10 +54,14 @@ public sealed class ImGuiManager : IDisposable
         io.DisplaySize = displaySize;
 
         io.BackendFlags |= ImGuiBackendFlags.RendererHasTextures;
-
+        
         ImGui.StyleColorsDark();
 
         CreateResources();
+
+        _window.OnKey += OnKey;
+        _window.OnMouseButton += OnMouseButton;
+        _window.OnCursorPos += OnCursorPos;
     }
 
     private void CreateResources()
@@ -292,6 +301,26 @@ public sealed class ImGuiManager : IDisposable
         vtxMemory.Unmap();
         idxMemory.Unmap();
     }
+    
+    public void OnFramebufferResize(int2 size)
+    {
+        ImGui.GetIO().DisplaySize = new float2(size.X, size.Y);
+    }
+
+    private void OnKey(GlfwWindow window, GlfwKey key, Int32 scancode, GlfwKeyAction action, GlfwModifier mod)
+    {
+        ImGui.GetIO().AddKeyEvent((ImGuiKey)key, action == GlfwKeyAction.Press);
+    }
+
+    private void OnMouseButton(GlfwWindow window, GlfwMouseButton button, GlfwButtonAction action, GlfwModifier mods)
+    {
+        ImGui.GetIO().AddMouseButtonEvent((Int32)button, action == GlfwButtonAction.Press);
+    }
+    
+    private void OnCursorPos(GlfwWindow window, double2 pos)
+    {
+        ImGui.GetIO().AddMousePosEvent((Single)pos.X, (Single)pos.Y);
+    }
 
     public void Dispose()
     {
@@ -313,11 +342,10 @@ public sealed class ImGuiManager : IDisposable
         _device.DestroyDescriptorSetLayout(DescriptorSetLayout, null);
         _device.DestroyDescriptorPool(_descriptorPool, null);
 
-        ImGui.DestroyContext(_context);
-    }
+        _window.OnKey -= OnKey;
+        _window.OnMouseButton -= OnMouseButton;
+        _window.OnCursorPos -= OnCursorPos;
 
-    public void OnFramebufferResize(int2 size)
-    {
-        ImGui.GetIO().DisplaySize = new float2(size.X, size.Y);
+        ImGui.DestroyContext(_context);
     }
 }

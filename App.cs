@@ -199,7 +199,7 @@ public sealed class App : IDisposable
         CreateTextureSampler();
 
         _imGuiManager = new ImGuiManager(_allocator, _device,
-            new float2(_window.Width, _window.Height), _cmdManager);
+            new float2(_window.Width, _window.Height), _cmdManager, _window, _inputManager);
 
         _renderer = new Renderer(_device, _physicalDevice, _surface, _window, _allocator, _commandPool, _queue,
             _pipelineManager, _descriptorSets, _imGuiManager);
@@ -230,25 +230,45 @@ public sealed class App : IDisposable
             if (_inputManager.IsKeyPressed(GlfwKey.Escape))
                 _window.ShouldClose = true;
 
-            var movement = float3.Zero;
-            var speed = 5.0f;
-            if (_inputManager.IsKeyDown(GlfwKey.W))
-                movement += float3.UnitZ;
-            if (_inputManager.IsKeyDown(GlfwKey.S))
-                movement -= float3.UnitZ;
-            if (_inputManager.IsKeyDown(GlfwKey.A))
-                movement -= float3.UnitX;
-            if (_inputManager.IsKeyDown(GlfwKey.D))
-                movement += float3.UnitX;
-            if (_inputManager.IsKeyDown(GlfwKey.Space))
-                movement += float3.UnitY;
-            if (_inputManager.IsKeyDown(GlfwKey.LeftControl))
-                movement -= float3.UnitY;
-            _camera.MoveRelative(float3.NormalizeOrZero(movement) * dt * speed);
+            switch (_inputManager.InputMode)
+            {
+                case InputMode.CameraControl when _inputManager.IsKeyPressed(GlfwKey.Tab):
+                    _inputManager.SetInputMode(InputMode.UiInteraction);
+                    break;
+                case InputMode.CameraControl:
+                {
+                    var movement = float3.Zero;
+                    var speed = 5.0f;
+                    if (_inputManager.IsKeyDown(GlfwKey.W))
+                        movement += float3.UnitZ;
+                    if (_inputManager.IsKeyDown(GlfwKey.S))
+                        movement -= float3.UnitZ;
+                    if (_inputManager.IsKeyDown(GlfwKey.A))
+                        movement -= float3.UnitX;
+                    if (_inputManager.IsKeyDown(GlfwKey.D))
+                        movement += float3.UnitX;
+                    if (_inputManager.IsKeyDown(GlfwKey.Space))
+                        movement += float3.UnitY;
+                    if (_inputManager.IsKeyDown(GlfwKey.LeftControl))
+                        movement -= float3.UnitY;
+                    _camera.MoveRelative(float3.NormalizeOrZero(movement) * dt * speed);
 
-            var mouseDelta = _inputManager.MouseDelta;
-            var sensitivity = 0.001f;
-            _camera.Rotate((Single)mouseDelta.X * sensitivity, -(Single)mouseDelta.Y * sensitivity);
+                    var mouseDelta = _inputManager.MouseDelta;
+                    var sensitivity = 0.001f;
+                    _camera.Rotate((Single)mouseDelta.X * sensitivity, -(Single)mouseDelta.Y * sensitivity);
+                    break;
+                }
+                case InputMode.UiInteraction:
+                {
+                    if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Left) &&
+                        !InputManager.IsImGuiCapturingMouse())
+                    {
+                        _inputManager.SetInputMode(InputMode.CameraControl);
+                    }
+
+                    break;
+                }
+            }
 
             _imGuiManager.NewFrame();
 
@@ -807,7 +827,7 @@ public sealed class App : IDisposable
                 Rotation = floatQuat.Identity,
                 Scale = new float3(1.0f, 1.0f, 1.0f)
             },
-            _materialManager.GetMaterialId("flat color")
+            _materialManager.GetMaterialId("statue")
         );
 
         AddObject(
@@ -829,7 +849,7 @@ public sealed class App : IDisposable
                 Rotation = floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
                 Scale = new float3(1.0f, 1.0f, 1.0f)
             },
-            _materialManager.GetMaterialId("statue")
+            _materialManager.GetMaterialId("flat color")
         );
 
         AddObject(
@@ -1051,13 +1071,13 @@ public sealed class App : IDisposable
         _imGuiManager.Dispose();
 
         _renderer.Dispose();
+        _pipelineManager.Dispose();
         _device.DestroyDescriptorPool(_descriptorPool, null);
         _device.DestroyDescriptorSetLayout(_descriptorSetLayout, null);
         _textureManager.Dispose();
         _meshManager.Dispose();
         _device.DestroySampler(_textureSampler, null);
         _device.DestroyCommandPool(_commandPool, null);
-        _pipelineManager.Dispose();
         _device.DestroyVmaAllocator(_allocator);
         _instance.DestroySurfaceKHR(_surface, null);
 
