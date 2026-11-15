@@ -1,4 +1,4 @@
-namespace BrutalVulkan;
+namespace BrutalVulkan.Materials;
 
 public readonly record struct MaterialId(UInt32 Value)
 {

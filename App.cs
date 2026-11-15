@@ -9,6 +9,7 @@ using Brutal.Strings;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
+using BrutalVulkan.Materials;
 using BrutalVulkan.Rendering;
 
 namespace BrutalVulkan;
@@ -380,13 +381,13 @@ public sealed class App : IDisposable
                 [
                     Presets.ShaderStage.Vertex(
                         CompileShader(
-                            LoadShader("mesh.vert"),
+                            LoadShader("flatColor.vert"),
                             ShaderKind.VertexShader
                         )
                     ),
                     Presets.ShaderStage.Fragment(
                         CompileShader(
-                            LoadShader("line.frag"),
+                            LoadShader("flatColor.frag"),
                             ShaderKind.FragmentShader
                         )
                     )
@@ -416,7 +417,7 @@ public sealed class App : IDisposable
                 new()
                 {
                     Offset = ByteSize.Of<float4x4>(),
-                    Size = ByteSize.Of<UInt32>(),
+                    Size = ByteSize.Of<float3>(),
                     StageFlags = VkShaderStageFlags.FragmentBit
                 }
             ];
@@ -560,6 +561,91 @@ public sealed class App : IDisposable
 
             _pipelineManager.AddPipeline("ImGui", pipelineDescription);
         }
+
+        // Flat Color
+        {
+            using var shaderStages = new ShaderStages(
+                _device,
+                [
+                    Presets.ShaderStage.Vertex(
+                        CompileShader(
+                            LoadShader("flatColor.vert"),
+                            ShaderKind.VertexShader
+                        )
+                    ),
+                    Presets.ShaderStage.Fragment(
+                        CompileShader(
+                            LoadShader("flatColor.frag"),
+                            ShaderKind.FragmentShader
+                        )
+                    )
+                ],
+                null
+            );
+
+            var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
+
+            var format = _renderer.SwapchainFormat.Format;
+
+            var rendering = new VkPipelineRenderingCreateInfo
+            {
+                ColorAttachmentCount = 1,
+                ColorAttachmentFormats = &format,
+                DepthAttachmentFormat = VkFormat.D32SFloat
+            };
+
+            ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
+            [
+                new()
+                {
+                    Offset = ByteSize.Zero,
+                    Size = ByteSize.Of<float4x4>(),
+                    StageFlags = VkShaderStageFlags.VertexBit
+                },
+                new()
+                {
+                    Offset = ByteSize.Of<float4x4>(),
+                    Size = ByteSize.Of<float3>(),
+                    StageFlags = VkShaderStageFlags.FragmentBit
+                },
+            ];
+
+            var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+            {
+                DepthTestEnable = true,
+                DepthWriteEnable = true,
+                DepthCompareOp = VkCompareOp.Less,
+                DepthBoundsTestEnable = false,
+                StencilTestEnable = false
+            };
+
+            var multisampleState = new VkPipelineMultisampleStateCreateInfo
+            {
+                RasterizationSamples = _renderer.MsaaSamples
+            };
+
+            var rasterizationState = new VkPipelineRasterizationStateCreateInfo
+            {
+                PolygonMode = VkPolygonMode.Fill,
+                CullMode = VkCullModeFlags.BackBit,
+                LineWidth = 1.0f
+            };
+
+            var pipelineDescription = new PipelineDescription
+            {
+                RenderingCreateInfo = rendering,
+                ShaderStages = shaderStages,
+                VertexInput = vertexInput,
+                RasterizationStateCreateInfo = rasterizationState,
+                MultisampleStateCreateInfo = multisampleState,
+                DepthStencilStateCreateInfo = depthStencil,
+                DescriptorSetLayouts = [_descriptorSetLayout],
+                PushConstantRanges = [.. pushConstantRanges],
+                ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
+            };
+
+            _pipelineManager.AddPipeline("Flat Color", pipelineDescription);
+        }
     }
 
     private void CreateMeshes()
@@ -666,24 +752,35 @@ public sealed class App : IDisposable
         _materialManager = new MaterialManager();
 
         _materialManager.AddMaterial("brick",
-            new Material
+            new TextureMaterial
             {
-                TextureId = _textureManager.GetTextureId("brick"), PipelineId = _pipelineManager.GetPipelineId("Opaque")
+                PipelineId = _pipelineManager.GetPipelineId("Opaque"),
+                TextureId = _textureManager.GetTextureId("brick")
             });
         _materialManager.AddMaterial("statue",
-            new Material
+            new TextureMaterial
             {
-                TextureId = _textureManager.GetTextureId("statue"),
-                PipelineId = _pipelineManager.GetPipelineId("Opaque")
+                PipelineId = _pipelineManager.GetPipelineId("Opaque"),
+                TextureId = _textureManager.GetTextureId("statue")
             });
         _materialManager.AddMaterial("viking_room",
-            new Material
+            new TextureMaterial
             {
-                TextureId = _textureManager.GetTextureId("viking_room"),
-                PipelineId = _pipelineManager.GetPipelineId("Opaque")
+                PipelineId = _pipelineManager.GetPipelineId("Opaque"),
+                TextureId = _textureManager.GetTextureId("viking_room")
             });
         _materialManager.AddMaterial("wireframe",
-            new Material { TextureId = TextureId.Invalid, PipelineId = _pipelineManager.GetPipelineId("Wireframe") });
+            new ColorMaterial
+            {
+                PipelineId = _pipelineManager.GetPipelineId("Wireframe"),
+                Color = new float3(0.3f, 0.1f, 0.3f)
+            });
+        _materialManager.AddMaterial("flat color",
+            new ColorMaterial
+            {
+                PipelineId = _pipelineManager.GetPipelineId("Flat Color"),
+                Color = new float3(0.7f, 0.5f, 0.5f)
+            });
     }
 
     private void CreateObjects()
@@ -698,7 +795,7 @@ public sealed class App : IDisposable
             },
             _materialManager.GetMaterialId("brick")
         );
-        
+
         AddObject(
             _meshManager.GetMeshId("cube"),
             new Transform
@@ -707,9 +804,9 @@ public sealed class App : IDisposable
                 Rotation = floatQuat.Identity,
                 Scale = new float3(1.0f, 1.0f, 1.0f)
             },
-            _materialManager.GetMaterialId("wireframe")
+            _materialManager.GetMaterialId("flat color")
         );
-        
+
         AddObject(
             _meshManager.GetMeshId("viking_room"),
             new Transform
@@ -720,7 +817,7 @@ public sealed class App : IDisposable
             },
             _materialManager.GetMaterialId("viking_room")
         );
-        
+
         AddObject(
             _meshManager.GetMeshId("planet"),
             new Transform
@@ -731,7 +828,7 @@ public sealed class App : IDisposable
             },
             _materialManager.GetMaterialId("statue")
         );
-        
+
         AddObject(
             _meshManager.GetMeshId("planet"),
             new Transform
@@ -740,7 +837,7 @@ public sealed class App : IDisposable
                 Rotation = floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
                 Scale = new float3(1.0f, 1.0f, 1.0f)
             },
-            _materialManager.GetMaterialId("statue")
+            _materialManager.GetMaterialId("wireframe")
         );
     }
 

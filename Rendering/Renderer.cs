@@ -3,6 +3,7 @@ using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
+using BrutalVulkan.Materials;
 
 namespace BrutalVulkan.Rendering;
 

@@ -47,9 +47,7 @@ public sealed class OpaquePass : IRenderPass
 
             context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
                 renderObject.ModelMatrix * context.ViewProj);
-            context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,
-                ByteSize.Of<float4x4>(),
-                renderObject.Material.TextureId);
+            renderObject.Material.Bind(context, pipeline);
 
             var gpuMesh = renderObject.Mesh;
 
