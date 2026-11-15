@@ -24,9 +24,9 @@ public sealed class ComponentPool<T> : IComponentPool where T : struct
         _components[index] = component;
     }
 
-    public void Remove(Entity entity)
+    public Boolean Remove(Entity entity)
     {
-        if (!Has(entity)) return;
+        if (!Has(entity)) return false;
         
         var index = _sparse[(Int32)entity.Id.Value];
         var lastIndex = --Count;
@@ -45,6 +45,8 @@ public sealed class ComponentPool<T> : IComponentPool where T : struct
 
         _entities[lastIndex] = default;
         _components[lastIndex] = default;
+
+        return true;
     }
 
     public Boolean Has(Entity entity)
