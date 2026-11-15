@@ -122,8 +122,11 @@ public sealed class App : IDisposable
             }
         );
 
-        if (Glfw.CreateWindowSurface(_instance.VkHandle, _window, out var surfaceHandle) != (Int32)VkResult.Success)
-            throw new InvalidOperationException("Failed to create a Vulkan surface for the window");
+        var result = Glfw.CreateWindowSurface(_instance.VkHandle, _window, out var surfaceHandle);
+
+        if (result != (Int32)VkResult.Success)
+            throw new InvalidOperationException($"Failed to create Vulkan surface: {result}");
+
         _surface = new VkSurfaceKHR((nint)surfaceHandle);
 
         foreach (var candidate in _instance.PhysicalDevices)
