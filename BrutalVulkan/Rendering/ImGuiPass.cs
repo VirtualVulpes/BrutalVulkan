@@ -16,63 +16,90 @@ public class ImGuiPass : IRenderPass
         _imGuiManager = imGuiManager;
         _pipelineManager = pipelineManager;
     }
-    
+
     public void Record(in RenderContext context, ReadOnlySpan<GpuRenderObject> renderObjects)
     {
         var drawData = ImGui.GetDrawData();
         if (!drawData.Valid || drawData.CmdListsCount == 0) return;
 
+        var fbWidth = (Int32)(drawData.DisplaySize.X * drawData.FramebufferScale.X);
+        var fbHeight = (Int32)(drawData.DisplaySize.Y * drawData.FramebufferScale.Y);
+        if (fbWidth <= 0 || fbHeight <= 0) return;
+
         var pipeline = _pipelineManager.GetPipeline("ImGui");
-        
-        context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, pipeline.Handle);
+        var cmdBuf = context.CommandBuffer;
+
+        cmdBuf.BindPipeline(VkPipelineBindPoint.Graphics, pipeline.Handle);
 
         var viewport = new VkViewport
         {
-            Width = context.Extent.Width,
-            Height = context.Extent.Height,
+            Width = fbWidth,
+            Height = fbHeight,
             MinDepth = 0.0f,
             MaxDepth = 1.0f,
         };
-        context.CommandBuffer.SetViewport(0, [viewport]);
+        cmdBuf.SetViewport(0, [viewport]);
 
+        var scale = new float2(2.0f / drawData.DisplaySize.X, 2.0f / drawData.DisplaySize.Y);
         var pushConsts = new PushConstantBlocks.ImGuiBlock
         {
-            Scale = new float2(
-                2.0f / drawData.DisplaySize.X,
-                2.0f / drawData.DisplaySize.Y
-            ),
-            Translate = new float2(-1.0f, -1.0f)
+            Scale = scale,
+            Translate = new float2(
+                -1.0f - drawData.DisplayPos.X * scale.X,
+                -1.0f - drawData.DisplayPos.Y * scale.Y
+            )
         };
-        context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero, pushConsts);
+        cmdBuf.PushConstants(pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero, pushConsts);
 
-        context.CommandBuffer.BindVertexBuffer(0, _imGuiManager.GetVertexBuffer(context.FrameIndex), ByteSize.Zero);
-        context.CommandBuffer.BindIndexBuffer(_imGuiManager.GetIndexBuffer(context.FrameIndex), VkIndexType.UInt16);
+        cmdBuf.BindVertexBuffer(0, _imGuiManager.GetVertexBuffer(context.FrameIndex), ByteSize.Zero);
+        cmdBuf.BindIndexBuffer(_imGuiManager.GetIndexBuffer(context.FrameIndex), VkIndexType.UInt16);
+
+        var clipOff = drawData.DisplayPos;
+        var clipScale = drawData.FramebufferScale;
 
         var vertexOffset = 0;
         var indexOffset = 0;
+        VkDescriptorSet lastSet = default;
 
         foreach (var cmdList in drawData.CmdLists)
         {
             foreach (var cmd in cmdList.CmdBuffer)
             {
+                var minX = (cmd.ClipRect.X - clipOff.X) * clipScale.X;
+                var minY = (cmd.ClipRect.Y - clipOff.Y) * clipScale.Y;
+                var maxX = (cmd.ClipRect.Z - clipOff.X) * clipScale.X;
+                var maxY = (cmd.ClipRect.W - clipOff.Y) * clipScale.Y;
+
+                if (minX < 0) minX = 0;
+                if (minY < 0) minY = 0;
+                if (maxX > fbWidth) maxX = fbWidth;
+                if (maxY > fbHeight) maxY = fbHeight;
+
+                if (maxX <= minX || maxY <= minY) continue;
+
                 var scissor = new VkRect2D
                 {
                     Offset = new VkOffset2D(
-                        Int32.Max((Int32)cmd.ClipRect.X, 0),
-                        Int32.Max((Int32)cmd.ClipRect.Y, 0)
+                        (Int32)minX,
+                        (Int32)minY
                     ),
                     Extent = new VkExtent2D(
-                        (Int32)(cmd.ClipRect.Z - cmd.ClipRect.X),
-                        (Int32)(cmd.ClipRect.W - cmd.ClipRect.Y)
+                        (Int32)(maxX - minX),
+                        (Int32)(maxY - minY)
                     )
                 };
-                context.CommandBuffer.SetScissor(0, [scissor]);
+                cmdBuf.SetScissor(0, [scissor]);
 
-                var textureHandle = new VkDescriptorSet(cmd.GetTexID());
-                context.CommandBuffer.BindDescriptorSet(VkPipelineBindPoint.Graphics, pipeline.Layout, 0,
-                    textureHandle.IsNotNull() ? textureHandle : _imGuiManager.DescriptorSet, null);
+                var set = new VkDescriptorSet(cmd.GetTexID());
+                if (set.IsNull()) throw new InvalidOperationException("Descriptor set should not be null");
 
-                context.CommandBuffer.DrawIndexed((Int32)cmd.ElemCount, 1, indexOffset + (Int32)cmd.IdxOffset,
+                if (set.VkHandle != lastSet.VkHandle)
+                {
+                    cmdBuf.BindDescriptorSet(VkPipelineBindPoint.Graphics, pipeline.Layout, 0, set, null);
+                    lastSet = set;
+                }
+
+                cmdBuf.DrawIndexed((Int32)cmd.ElemCount, 1, indexOffset + (Int32)cmd.IdxOffset,
                     vertexOffset + (Int32)cmd.VtxOffset, 0);
             }
 

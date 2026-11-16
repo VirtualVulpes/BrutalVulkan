@@ -248,6 +248,8 @@ public sealed class Renderer : IDisposable
         CreateSwapchain();
         CreateColorResources();
         CreateDepthResources();
+        
+        _imGuiManager.UpdateDisplaySize();
     }
 
     private void CreateColorResources()

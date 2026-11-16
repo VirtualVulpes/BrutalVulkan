@@ -105,7 +105,6 @@ public sealed class App : IDisposable
         var app = (App)handle.Target!;
 
         app._renderer.OnFramebufferResize();
-        app._imGuiManager.OnFramebufferResize(size);
         app._camera.AspectRatio = (Single)size.X / size.Y;
     }
 
@@ -208,8 +207,7 @@ public sealed class App : IDisposable
 
         CreateTextureSampler();
 
-        _imGuiManager = new ImGuiManager(_allocator, _device,
-            new float2(_window.Width, _window.Height), _cmdManager, _window, _inputManager);
+        _imGuiManager = new ImGuiManager(_allocator, _device, _cmdManager, _window);
 
         _renderer = new Renderer(_device, _physicalDevice, _surface, _window, _allocator, _commandPool, _queue);
 
@@ -285,7 +283,7 @@ public sealed class App : IDisposable
                 }
             }
 
-            _imGuiManager.NewFrame();
+            _imGuiManager.NewFrame(dt);
 
             CreateUI();
 
