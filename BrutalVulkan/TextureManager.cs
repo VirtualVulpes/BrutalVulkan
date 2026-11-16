@@ -16,25 +16,27 @@ public readonly record struct TextureId(UInt32 Value)
 
 public sealed class TextureManager : IDisposable
 {
-    private UInt32 _nextId = 0;
+    private UInt32 _nextId;
 
     private readonly Dictionary<TextureId, Texture> _textures = new();
     private readonly Dictionary<String, TextureId> _names = new();
 
     private readonly List<BufferEx> _pendingStagingBuffers = [];
 
-    private readonly bool _supportsBc7;
+    private readonly Boolean _supportsBc7;
 
-    public TextureManager(bool supportsBc7)
+    public TextureManager(Boolean supportsBc7)
     {
         _supportsBc7 = supportsBc7;
     }
 
-    private unsafe Texture LoadTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator, TextureColorSpace colorSpace)
+    private unsafe Texture LoadTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator,
+        TextureColorSpace colorSpace)
     {
         var filePath = Path.Join("textures", fileName);
         KtxErrorCode result =
-            KtxTexture.CreateFromNamedFile(Encoding.UTF8.GetBytes(filePath), KtxTextureCreateFlagBits.LoadImageDataBit, out var image);
+            KtxTexture.CreateFromNamedFile(Encoding.UTF8.GetBytes(filePath), KtxTextureCreateFlagBits.LoadImageDataBit,
+                out var image);
 
         if (result != KtxErrorCode.Success)
             throw new InvalidOperationException($"Could not load file at {filePath}");
@@ -46,16 +48,14 @@ public sealed class TextureManager : IDisposable
 
         if (ktx2.NeedsTranscoding())
         {
-            if (_supportsBc7)
-                result = ktx2.TranscodeBasis(KtxTranscodeFmt.Bc7Rgba, KtxTranscodeFlagBits.HighQuality);
-            else
-                result = ktx2.TranscodeBasis(KtxTranscodeFmt.Rgba32, KtxTranscodeFlagBits.HighQuality);
+            result = ktx2.TranscodeBasis(_supportsBc7 ? KtxTranscodeFmt.Bc7Rgba : KtxTranscodeFmt.Rgba32,
+                KtxTranscodeFlagBits.HighQuality);
 
             if (result != KtxErrorCode.Success)
                 throw new InvalidOperationException($"Could not transcode file at {filePath}");
         }
 
-        VkFormat format = (VkFormat)ktx2.GetVkFormat();
+        var format = (VkFormat)ktx2.GetVkFormat();
         if (format == VkFormat.Undefined)
         {
             var srgb = (colorSpace == TextureColorSpace.SRgb);
@@ -71,7 +71,7 @@ public sealed class TextureManager : IDisposable
         }
 
         var imageSize = ktx2.GetDataSize();
-        var numLevels = (int)ktx2.NumLevels;
+        var numLevels = (Int32)ktx2.NumLevels;
 
         var bufferInfo = new BufferEx.CreateInfo
         {
@@ -95,8 +95,8 @@ public sealed class TextureManager : IDisposable
             ImageFormat = format,
             ImageExtent = new VkExtent3D
             {
-                Width = (int)ktx2.BaseWidth,
-                Height = (int)ktx2.BaseHeight,
+                Width = (Int32)ktx2.BaseWidth,
+                Height = (Int32)ktx2.BaseHeight,
                 Depth = 1
             },
             ImageMipLevels = numLevels,
@@ -127,10 +127,10 @@ public sealed class TextureManager : IDisposable
 
         for (var i = 0; i < ktx2.NumLevels; i++)
         {
-            var width = int.Max(1, (int)ktx2.BaseWidth >> i);
-            var height = int.Max(1, (int)ktx2.BaseHeight >> i);
+            var width = Int32.Max(1, (Int32)ktx2.BaseWidth >> i);
+            var height = Int32.Max(1, (Int32)ktx2.BaseHeight >> i);
 
-            ktx2.GetImageOffset((uint)i, 0, 0, out ulong offset);
+            ktx2.GetImageOffset((UInt32)i, 0, 0, out var offset);
 
             regions[i] = new VkBufferImageCopy
             {
@@ -178,10 +178,11 @@ public sealed class TextureManager : IDisposable
         return new Texture(textureImage, textureImageView);
     }
 
-    public TextureId AddTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator, TextureColorSpace colorSpace)
+    public TextureId AddTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator,
+        TextureColorSpace colorSpace)
     {
         var textureId = new TextureId(_nextId++);
-        
+
         var texture = LoadTexture(fileName, commandBuffer, allocator, colorSpace);
         var name = Path.GetFileNameWithoutExtension(fileName);
 

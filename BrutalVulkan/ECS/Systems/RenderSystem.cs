@@ -1,6 +1,7 @@
-using Brutal.Numerics;
 using BrutalVulkan.ECS.Components;
 using BrutalVulkan.Rendering;
+using BrutalVulkan.Rendering.GpuTypes;
+using BrutalVulkan.Utility;
 
 namespace BrutalVulkan.ECS.Systems;
 
@@ -33,7 +34,7 @@ public sealed class RenderSystem : ISystem
         {
             _renderObjects[_renderObjectCount++] = new RenderObject
             {
-                ModelMatrix = item.C1.GetModelMatrix(),
+                ModelMatrix = TransformUtility.GetModelMatrix(item.C1),
                 PipelineId = item.C2.PipelineId,
                 MeshId = item.C3.MeshId,
                 Color = item.C4.Color,
@@ -45,7 +46,7 @@ public sealed class RenderSystem : ISystem
         {
             _renderObjects[_renderObjectCount++] = new RenderObject
             {
-                ModelMatrix = item.C1.GetModelMatrix(),
+                ModelMatrix = TransformUtility.GetModelMatrix(item.C1),
                 PipelineId = item.C2.PipelineId,
                 MeshId = item.C3.MeshId,
                 TextureId = item.C4.TextureId,
@@ -69,8 +70,8 @@ public sealed class RenderSystem : ISystem
         {
             _gpuLights[_gpuLightCount++] = new GpuLight
             {
-                Position = new float4(item.C1.Position, 0.0f),
-                Color = new float4(item.C2.Color, 0.0f),
+                Position = item.C1.Position,
+                Color = item.C2.Color,
                 Intensity = item.C2.Intensity
             };
         }

@@ -4,60 +4,13 @@ using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
-using BrutalVulkan.ECS.Components;
+using BrutalVulkan.Rendering.GpuTypes;
+using BrutalVulkan.Rendering.Meshes;
 
 namespace BrutalVulkan.Rendering;
 
-public enum RenderDataType
-{
-    Color,
-    Texture
-}
-
-public readonly struct RenderObject
-{
-    public float4x4 ModelMatrix { get; init; }
-
-    public MeshId MeshId { get; init; }
-    public PipelineId PipelineId { get; init; }
-
-    public RenderDataType DataType { get; init; }
-    public float3 Color { get; init; }
-    public TextureId TextureId { get; init; }
-}
-
-public readonly struct GpuRenderObject
-{
-    public GpuMesh Mesh { get; init; }
-    public float4x4 ModelMatrix { get; init; }
-    public PipelineId PipelineId { get; init; }
-
-    public RenderDataType DataType { get; init; }
-    public float4 Color { get; init; }
-    public TextureId TextureId { get; init; }
-}
-
-public struct GpuLightBuffer
-{
-    public UInt32 LightCount;
-    public GpuLight[] Lights;
-}
-
 public sealed class Renderer : IDisposable
 {
-    private struct FrameResources
-    {
-        public CommandBuffer CommandBuffer;
-        public VkFence Fence;
-        public VkSemaphore ImageAvailable;
-
-        public ImageEx ColorImage;
-        public ImageViewEx ColorImageView;
-
-        public ImageEx DepthImage;
-        public ImageViewEx DepthImageView;
-    }
-
     private readonly DeviceEx _device;
     private readonly PhysicalDevice _physicalDevice;
     private readonly VkSurfaceKHR _surface;
@@ -68,6 +21,7 @@ public sealed class Renderer : IDisposable
     private VkDescriptorSet[] _descriptorSets;
     private ImGuiManager _imGuiManager;
     private MeshManager _meshManager;
+    private PipelineManager _pipelineManager;
     private List<IRenderPass> _renderPasses;
 
     private readonly FrameResources[] _frameResources = new FrameResources[Constants.MaxFramesInFlight];
@@ -78,10 +32,10 @@ public sealed class Renderer : IDisposable
     private VkImage[] _swapchainImages;
     private VkImageView[] _swapchainImageViews;
 
-    private Boolean _isFramebufferResized = false;
-    private Int32 _frameIndex = 0;
+    private Boolean _isFramebufferResized;
+    private Int32 _frameIndex;
 
-    private GpuRenderObject[] _gpuRenderObjects = [];
+    private RenderItem[] _renderObjects = [];
 
     private BufferEx _lightsBuffer;
 
@@ -127,11 +81,12 @@ public sealed class Renderer : IDisposable
         _descriptorSets = descriptorSets;
         _imGuiManager = imGuiManager;
         _meshManager = meshManager;
+        _pipelineManager = pipelineManager;
 
         _renderPasses =
         [
-            new OpaquePass(pipelineManager),
-            new ImGuiPass(_imGuiManager, pipelineManager)
+            new OpaquePass(),
+            new ImGuiPass(_imGuiManager, _pipelineManager.GetPipeline("ImGui"))
         ];
 
         CreateLightBuffer();
@@ -571,18 +526,18 @@ public sealed class Renderer : IDisposable
             }
         );
 
-        if (_gpuRenderObjects.Length < renderObjects.Length)
-            Array.Resize(ref _gpuRenderObjects, renderObjects.Length);
+        if (_renderObjects.Length < renderObjects.Length)
+            Array.Resize(ref _renderObjects, renderObjects.Length);
 
         for (var i = 0; i < renderObjects.Length; i++)
         {
-            _gpuRenderObjects[i] = new GpuRenderObject
+            _renderObjects[i] = new RenderItem
             {
-                PipelineId = renderObjects[i].PipelineId,
-                Mesh = _meshManager.GetGpuMesh(renderObjects[i].MeshId),
+                Pipeline = _pipelineManager.GetPipeline(renderObjects[i].PipelineId),
+                GpuMesh = _meshManager.GetGpuMesh(renderObjects[i].MeshId),
                 ModelMatrix = renderObjects[i].ModelMatrix,
                 TextureId = renderObjects[i].TextureId,
-                Color = new float4(renderObjects[i].Color, 0.0f),
+                Color = renderObjects[i].Color,
                 DataType = renderObjects[i].DataType
             };
         }
@@ -591,7 +546,7 @@ public sealed class Renderer : IDisposable
 
         foreach (var pass in _renderPasses)
         {
-            pass.Record(context, [.. _gpuRenderObjects]);
+            pass.Record(context, _renderObjects);
         }
 
         resources.CommandBuffer.EndRendering();

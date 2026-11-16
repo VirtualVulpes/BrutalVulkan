@@ -9,13 +9,16 @@ public sealed class Pipeline : IDisposable
     
     public VkPipeline Handle { get; }
     public VkPipelineLayout Layout { get; }
+    
+    public PipelineId Id { get; }
 
-    public Pipeline(DeviceEx device, VkPipeline handle, VkPipelineLayout layout)
+    public Pipeline(DeviceEx device, VkPipeline handle, VkPipelineLayout layout, PipelineId id)
     {
         _device = device;
 
         Handle = handle;
         Layout = layout;
+        Id = id;
     }
     
     public void Dispose()

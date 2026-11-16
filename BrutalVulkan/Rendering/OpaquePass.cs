@@ -1,5 +1,4 @@
 using Brutal;
-using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 
@@ -7,14 +6,7 @@ namespace BrutalVulkan.Rendering;
 
 public sealed class OpaquePass : IRenderPass
 {
-    private readonly PipelineManager _pipelineManager;
-
-    public OpaquePass(PipelineManager pipelineManager)
-    {
-        _pipelineManager = pipelineManager;
-    }
-
-    public void Record(in RenderContext context, ReadOnlySpan<GpuRenderObject> renderObjects)
+    public void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
     {
         context.CommandBuffer.SetViewport(0, [
             new VkViewport
@@ -34,10 +26,10 @@ public sealed class OpaquePass : IRenderPass
 
         foreach (var renderObject in renderObjects)
         {
-            if (cachedPipelineId != renderObject.PipelineId)
+            if (cachedPipelineId != renderObject.Pipeline.Id)
             {
-                cachedPipelineId = renderObject.PipelineId;
-                pipeline = _pipelineManager.GetPipeline(cachedPipelineId);
+                cachedPipelineId = renderObject.Pipeline.Id;
+                pipeline = renderObject.Pipeline;
 
                 context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, pipeline.Handle);
                 context.CommandBuffer
@@ -72,7 +64,7 @@ public sealed class OpaquePass : IRenderPass
                     break;
             }
 
-            var gpuMesh = renderObject.Mesh;
+            var gpuMesh = renderObject.GpuMesh;
 
             context.CommandBuffer.BindVertexBuffers(0, [gpuMesh.VertexBuffer], [new ByteSize64(0)]);
             context.CommandBuffer.BindIndexBuffer(gpuMesh.IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);

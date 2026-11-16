@@ -1,7 +1,3 @@
-using Brutal.KtxApi;
-using BrutalVulkan.Rendering;
-using CommunityToolkit.HighPerformance;
-
 namespace BrutalVulkan.ECS;
 
 public sealed partial class World
@@ -9,7 +5,7 @@ public sealed partial class World
     private readonly List<UInt32> _generations = [];
     private readonly Stack<EntityId> _freeIds = [];
 
-    private Dictionary<Type, IComponentPool> _componentPools = [];
+    private readonly Dictionary<Type, IComponentPool> _componentPools = [];
 
     public Entity CreateEntity()
     {
@@ -60,7 +56,7 @@ public sealed partial class World
             throw new InvalidOperationException($"Invalid or destroyed entity {entity}");
     }
 
-    public ComponentPool<T> GetPool<T>() where T : struct
+    private ComponentPool<T> GetPool<T>() where T : struct
     {
         var type = typeof(T);
 

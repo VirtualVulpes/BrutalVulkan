@@ -1,6 +1,4 @@
-﻿using BrutalVulkan;
-
-namespace BrutalVulkan;
+﻿namespace BrutalVulkan;
 
 internal static class Program
 {

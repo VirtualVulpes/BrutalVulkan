@@ -8,16 +8,16 @@ namespace BrutalVulkan.Rendering;
 
 public class ImGuiPass : IRenderPass
 {
-    private ImGuiManager _imGuiManager;
-    private PipelineManager _pipelineManager;
+    private readonly ImGuiManager _manager;
+    private readonly Pipeline _pipeline;
 
-    public ImGuiPass(ImGuiManager imGuiManager, PipelineManager pipelineManager)
+    public ImGuiPass(ImGuiManager imGuiManager, Pipeline imGuiPipeline)
     {
-        _imGuiManager = imGuiManager;
-        _pipelineManager = pipelineManager;
+        _manager = imGuiManager;
+        _pipeline = imGuiPipeline;
     }
 
-    public void Record(in RenderContext context, ReadOnlySpan<GpuRenderObject> renderObjects)
+    public void Record(in RenderContext context, ReadOnlySpan<RenderItem> _)
     {
         var drawData = ImGui.GetDrawData();
         if (!drawData.Valid || drawData.CmdListsCount == 0) return;
@@ -26,10 +26,9 @@ public class ImGuiPass : IRenderPass
         var fbHeight = (Int32)(drawData.DisplaySize.Y * drawData.FramebufferScale.Y);
         if (fbWidth <= 0 || fbHeight <= 0) return;
 
-        var pipeline = _pipelineManager.GetPipeline("ImGui");
         var cmdBuf = context.CommandBuffer;
 
-        cmdBuf.BindPipeline(VkPipelineBindPoint.Graphics, pipeline.Handle);
+        cmdBuf.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
 
         var viewport = new VkViewport
         {
@@ -49,17 +48,17 @@ public class ImGuiPass : IRenderPass
                 -1.0f - drawData.DisplayPos.Y * scale.Y
             )
         };
-        cmdBuf.PushConstants(pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero, pushConsts);
+        cmdBuf.PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero, pushConsts);
 
-        cmdBuf.BindVertexBuffer(0, _imGuiManager.GetVertexBuffer(context.FrameIndex), ByteSize.Zero);
-        cmdBuf.BindIndexBuffer(_imGuiManager.GetIndexBuffer(context.FrameIndex), VkIndexType.UInt16);
+        cmdBuf.BindVertexBuffer(0, _manager.GetVertexBuffer(context.FrameIndex), ByteSize.Zero);
+        cmdBuf.BindIndexBuffer(_manager.GetIndexBuffer(context.FrameIndex), VkIndexType.UInt16);
 
         var clipOff = drawData.DisplayPos;
         var clipScale = drawData.FramebufferScale;
 
         var vertexOffset = 0;
         var indexOffset = 0;
-        VkDescriptorSet lastSet = default;
+        var lastSet = default(VkDescriptorSet);
 
         foreach (var cmdList in drawData.CmdLists)
         {
@@ -95,7 +94,7 @@ public class ImGuiPass : IRenderPass
 
                 if (set.VkHandle != lastSet.VkHandle)
                 {
-                    cmdBuf.BindDescriptorSet(VkPipelineBindPoint.Graphics, pipeline.Layout, 0, set, null);
+                    cmdBuf.BindDescriptorSet(VkPipelineBindPoint.Graphics, _pipeline.Layout, 0, set, null);
                     lastSet = set;
                 }
 

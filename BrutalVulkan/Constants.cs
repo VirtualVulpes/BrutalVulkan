@@ -1,16 +1,14 @@
-using Brutal.VulkanApi;
-
 namespace BrutalVulkan;
 
 public static class Constants
 {
-    public const int WindowWidth = 800;
-    public const int WindowHeight = 600;
+    public const Int32 WindowWidth = 800;
+    public const Int32 WindowHeight = 600;
 
-    public const int MaxTextures = 256;
-    public const int MaxLights = 16;
+    public const Int32 MaxTextures = 256;
+    public const Int32 MaxLights = 16;
     
-    public const int MaxFramesInFlight = 2;
+    public const Int32 MaxFramesInFlight = 2;
 
-    public const int DefaultMsaa = 4;
+    public const Int32 DefaultMsaa = 4;
 }

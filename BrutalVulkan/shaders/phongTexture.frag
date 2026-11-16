@@ -3,8 +3,8 @@
 #extension GL_EXT_nonuniform_qualifier : require
 
 struct GpuLight {
-    vec4 position;
-    vec4 color;
+    vec3 position;
+    vec3 color;
     float intensity;
 };
 

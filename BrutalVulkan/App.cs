@@ -1,7 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Text;
 using Brutal;
 using Brutal.GlfwApi;
 using Brutal.ImGuiApi;
@@ -15,6 +13,7 @@ using BrutalVulkan.ECS;
 using BrutalVulkan.ECS.Components;
 using BrutalVulkan.ECS.Systems;
 using BrutalVulkan.Rendering;
+using BrutalVulkan.Rendering.Meshes;
 
 namespace BrutalVulkan;
 
@@ -46,7 +45,6 @@ public sealed class App : IDisposable
 
     private PipelineManager _pipelineManager;
     private TextureManager _textureManager;
-    private ModelLoader _modelLoader;
     private MeshManager _meshManager;
     private Renderer _renderer;
 
@@ -84,6 +82,7 @@ public sealed class App : IDisposable
         _world = new World();
         _systemManager = new SystemManager();
         _renderSystem = _systemManager.AddSystem(new RenderSystem(_world));
+        _systemManager.AddSystem(new RotateSystem(_world));
 
         CreateEntities();
     }
@@ -274,7 +273,7 @@ public sealed class App : IDisposable
                 case InputMode.UiInteraction:
                 {
                     if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Left) &&
-                        !InputManager.IsImGuiCapturingMouse())
+                        !_inputManager.IsImGuiCapturingMouse())
                     {
                         _inputManager.SetInputMode(InputMode.CameraControl);
                     }
@@ -903,8 +902,7 @@ public sealed class App : IDisposable
 
     private void LoadModels()
     {
-        _modelLoader = new ModelLoader();
-        var mesh = _modelLoader.LoadModel("viking_room.gltf");
+        var mesh = ModelLoader.LoadModel("viking_room.gltf");
         _meshManager.AddMesh("viking_room", mesh);
     }
 
@@ -937,6 +935,12 @@ public sealed class App : IDisposable
                 new PipelineComponent { PipelineId = _pipelineManager.GetPipelineId("Phong Texture") });
             _world.AddComponent(entity,
                 new TextureComponent { TextureId = _textureManager.GetTextureId("statue") });
+            _world.AddComponent(entity,
+                new RotateComponent
+                {
+                    LocalAngularVelocity = new float3(1.0f, 0.2f, 0.7f),
+                    WorldAngularVelocity = new float3(0.2f, 1.0f, 0.4f)
+                });
         }
         {
             var entity = _world.CreateEntity();
@@ -971,13 +975,19 @@ public sealed class App : IDisposable
             _world.AddComponent(entity, new TransformComponent
             {
                 Position = new float3(-6.0f, 1.0f, 0.0f),
-                Rotation = floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
+                Rotation = floatQuat.CreateFromAxisAngle(float3.UnitZ, Single.DegreesToRadians(23.44f)),
                 Scale = new float3(1.0f, 1.0f, 1.0f)
             });
             _world.AddComponent(entity, new MeshComponent { MeshId = _meshManager.GetMeshId("planet") });
             _world.AddComponent(entity,
                 new PipelineComponent { PipelineId = _pipelineManager.GetPipelineId("Wireframe") });
             _world.AddComponent(entity, new ColorComponent { Color = new float3(0.6f, 0.3f, 0.6f) });
+            _world.AddComponent(entity,
+                new RotateComponent
+                {
+                    LocalAngularVelocity = new float3(0.0f, 0.15f, 0.0f),
+                    WorldAngularVelocity = new float3(0.0f, 0.05f, 0.0f)
+                });
         }
         {
             var entity = _world.CreateEntity();

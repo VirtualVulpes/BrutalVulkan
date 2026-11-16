@@ -25,7 +25,7 @@ public sealed class PipelineManager : IDisposable
 {
     private readonly DeviceEx _device;
     
-    private UInt32 _nextId = 0;
+    private UInt32 _nextId;
 
     private readonly Dictionary<PipelineId, Pipeline> _pipelines = new();
     private readonly Dictionary<String, PipelineId> _names = new();
@@ -39,7 +39,7 @@ public sealed class PipelineManager : IDisposable
     {
         var pipelineId = new PipelineId(_nextId++);
         
-        var pipeline = CreatePipeline(description);
+        var pipeline = CreatePipeline(description, pipelineId);
 
         _pipelines.Add(pipelineId, pipeline);
         _names.Add(name, pipelineId);
@@ -62,7 +62,7 @@ public sealed class PipelineManager : IDisposable
         return _names[name];
     }
 
-    private unsafe Pipeline CreatePipeline(PipelineDescription description)
+    private unsafe Pipeline CreatePipeline(PipelineDescription description, PipelineId id)
     {
         var viewportState = new VkPipelineViewportStateCreateInfo
         {
@@ -88,7 +88,7 @@ public sealed class PipelineManager : IDisposable
                 DynamicStates = dynamicStatesPtr
             };
             
-            VkPipeline pipeline = _device.CreateGraphicsPipeline(
+            var pipeline = _device.CreateGraphicsPipeline(
                 VkPipelineCache.NullHandle,
                 new VkGraphicsPipelineCreateInfo
                 {
@@ -108,7 +108,7 @@ public sealed class PipelineManager : IDisposable
                 null
             );
 
-            return new Pipeline(_device, pipeline, pipelineLayout);
+            return new Pipeline(_device, pipeline, pipelineLayout, id);
         }
     }
 

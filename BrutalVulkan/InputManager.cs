@@ -122,6 +122,6 @@ public sealed class InputManager : IDisposable
         _window.OnMouseButton -= OnMouseButton;
     }
 
-    public static Boolean IsImGuiCapturingKeyboard() => ImGui.GetIO().WantCaptureKeyboard;
-    public static Boolean IsImGuiCapturingMouse() => ImGui.GetIO().WantCaptureMouse;
+    public Boolean IsImGuiCapturingKeyboard() => ImGui.GetIO().WantCaptureKeyboard;
+    public Boolean IsImGuiCapturingMouse() => ImGui.GetIO().WantCaptureMouse;
 }

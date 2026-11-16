@@ -14,21 +14,4 @@ public struct TransformComponent
         Rotation = floatQuat.Identity,
         Scale = float3.One
     };
-
-    public void RotateLocal(float3 axis, float angle)
-    {
-        Rotation = floatQuat.Normalize(Rotation * floatQuat.CreateFromAxisAngle(axis, angle));
-    }
-
-    public void RotateWorld(float3 axis, float angle)
-    {
-        Rotation = floatQuat.Normalize(floatQuat.CreateFromAxisAngle(axis, angle) * Rotation);
-    }
-
-    public readonly float4x4 GetModelMatrix()
-    {
-        return float4x4.CreateScale(Scale) *
-               float4x4.CreateFromQuaternion(Rotation) *
-               float4x4.CreateTranslation(Position);
-    }
 }

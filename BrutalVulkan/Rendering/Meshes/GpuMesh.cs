@@ -2,19 +2,19 @@ using Brutal;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Vma;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.Rendering.Meshes;
 
 public sealed class GpuMesh : IDisposable
 {
     private readonly VmaAllocator _allocator;
     
-    public int IndexCount { get; }
+    public Int32 IndexCount { get; }
 
-    private VkBuffer _vertexBuffer;
+    private readonly VkBuffer _vertexBuffer;
     public VkBuffer VertexBuffer => _vertexBuffer;
     private readonly VmaAllocation _vertexAllocation;
 
-    private VkBuffer _indexBuffer;
+    private readonly VkBuffer _indexBuffer;
     public VkBuffer IndexBuffer => _indexBuffer;
     private readonly VmaAllocation _indexAllocation;
     
@@ -34,7 +34,7 @@ public sealed class GpuMesh : IDisposable
             out _vertexAllocation,
             out var vertexAllocationInfo
         );
-        mesh.Vertices.CopyTo(new Span<Vertex>((void*)vertexAllocationInfo.PMappedData, mesh.Vertices.Length));
+        mesh.Vertices.CopyTo(new Span<Vertex>(vertexAllocationInfo.PMappedData.Pointer, mesh.Vertices.Length));
         _allocator.FlushAllocation(_vertexAllocation, ByteSize.Zero, verticesSize);
 
         var indicesSize = ByteSize.Of(mesh.Indices);
@@ -49,7 +49,7 @@ public sealed class GpuMesh : IDisposable
             out _indexAllocation,
             out var indexAllocationInfo
         );
-        mesh.Indices.CopyTo(new Span<UInt32>((void*)indexAllocationInfo.PMappedData, mesh.Indices.Length));
+        mesh.Indices.CopyTo(new Span<UInt32>(indexAllocationInfo.PMappedData.Pointer, mesh.Indices.Length));
         _allocator.FlushAllocation(_indexAllocation, ByteSize.Zero, indicesSize);
 
         IndexCount = mesh.Indices.Length;

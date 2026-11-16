@@ -1,7 +1,6 @@
-using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.Rendering.Meshes;
 
 public readonly record struct MeshId(UInt32 Value)
 {
@@ -10,7 +9,7 @@ public readonly record struct MeshId(UInt32 Value)
 
 public sealed class MeshManager : IDisposable
 {
-    private UInt32 _nextId = 0;
+    private UInt32 _nextId;
     private readonly VmaAllocator _allocator;
     
     private readonly Dictionary<MeshId, Mesh> _meshes = new();

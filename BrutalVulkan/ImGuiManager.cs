@@ -5,7 +5,6 @@ using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
-using Buffer = System.Buffer;
 
 namespace BrutalVulkan;
 

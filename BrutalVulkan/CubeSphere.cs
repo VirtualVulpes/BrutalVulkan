@@ -1,4 +1,5 @@
 using Brutal.Numerics;
+using BrutalVulkan.Rendering.Meshes;
 
 namespace BrutalVulkan;
 

@@ -1,13 +1,13 @@
 using System.Runtime.InteropServices;
-using System.Text;
 using Brutal.GltfApi;
 using Brutal.Numerics;
+using Mesh = BrutalVulkan.Rendering.Meshes.Mesh;
 
 namespace BrutalVulkan;
 
-public sealed class ModelLoader
+public static class ModelLoader
 {
-    public Mesh LoadModel(String fileName)
+    public static Mesh LoadModel(String fileName)
     {
         var filePath = Path.Join("models", fileName);
 
@@ -15,19 +15,19 @@ public sealed class ModelLoader
         
         var positionAccessor = loader.GltfJson.Meshes[0].Primitives[0].Attributes["POSITION"];
         var positionData = loader.GetAccessorBufferSpan(positionAccessor);
-        var positions = MemoryMarshal.Cast<byte, float3>(positionData).ToArray();
+        var positions = MemoryMarshal.Cast<Byte, float3>(positionData).ToArray();
         
         var normalAccessor = loader.GltfJson.Meshes[0].Primitives[0].Attributes["NORMAL"];
         var normalData = loader.GetAccessorBufferSpan(normalAccessor);
-        var normals = MemoryMarshal.Cast<byte, float3>(normalData).ToArray();
+        var normals = MemoryMarshal.Cast<Byte, float3>(normalData).ToArray();
 
         var uvAccessor = loader.GltfJson.Meshes[0].Primitives[0].Attributes["TEXCOORD_0"];
         var uvData = loader.GetAccessorBufferSpan(uvAccessor);
-        var uvs = MemoryMarshal.Cast<byte, float2>(uvData).ToArray();
+        var uvs = MemoryMarshal.Cast<Byte, float2>(uvData).ToArray();
         
         var vertices = new Vertex[positions.Length];
         
-        for (int i = 0; i < vertices.Length; i++)
+        for (var i = 0; i < vertices.Length; i++)
         {
             vertices[i] = new Vertex
             {
@@ -43,13 +43,13 @@ public sealed class ModelLoader
 
         var indices = new UInt32[indexAccessor.Count];
 
-        switch ((int)indexAccessor.ComponentType)
+        switch ((Int32)indexAccessor.ComponentType)
         {
             case 5121:
             {
-                var data = MemoryMarshal.Cast<byte, byte>(indexData);
+                var data = MemoryMarshal.Cast<Byte, Byte>(indexData);
 
-                for (int i = 0; i < indices.Length; i++)
+                for (var i = 0; i < indices.Length; i++)
                 {
                     indices[i] = data[i];
                 }
@@ -59,9 +59,9 @@ public sealed class ModelLoader
 
             case 5123:
             {
-                var data = MemoryMarshal.Cast<byte, UInt16>(indexData);
+                var data = MemoryMarshal.Cast<Byte, UInt16>(indexData);
                 
-                for (int i = 0; i < indices.Length; i++)
+                for (var i = 0; i < indices.Length; i++)
                 {
                     indices[i] = data[i];
                 }
@@ -71,7 +71,7 @@ public sealed class ModelLoader
 
             case 5125:
             {
-                var data = MemoryMarshal.Cast<byte, UInt32>(indexData);
+                var data = MemoryMarshal.Cast<Byte, UInt32>(indexData);
                 
                 data[..indices.Length].CopyTo(indices);
                 
