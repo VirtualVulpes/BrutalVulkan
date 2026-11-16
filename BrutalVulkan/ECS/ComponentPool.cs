@@ -9,6 +9,19 @@ public sealed class ComponentPool<T> : IComponentPool where T : struct
     public Int32 Count { get; private set; }
     public Entity GetEntityAt(Int32 index) => _entities[index];
 
+    public ref T GetAt(Int32 index) => ref _components[index];
+
+    public Boolean TryGetIndex(Entity entity, out Int32 index)
+    {
+        var id = (Int32)entity.Id.Value;
+        index = -1;
+
+        if (id >= _sparse.Length) return false;
+
+        index = _sparse[id];
+        return index >= 0 && index < Count && _entities[index] == entity;
+    }
+
     public void Add(Entity entity, T component)
     {
         if (Has(entity)) 

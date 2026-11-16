@@ -17,28 +17,22 @@ public sealed class RenderSystem : ISystem
 
     public ReadOnlySpan<RenderObject> BuildRenderObjects()
     {
-        var transforms = _world.GetPool<Transform>();
-        var meshIds = _world.GetPool<MeshId>();
-        var materialIds = _world.GetPool<MaterialId>();
-
-        EnsureCapacity(transforms.Count);
+        var query = _world.Query<Transform, MaterialId, MeshId>();
+        
+        EnsureCapacity(query.MaxCount);
 
         _renderObjectCount = 0;
         
-        for (var i = 0; i < transforms.Count; i++)
+        foreach (var item in query)
         {
-            var entity = transforms.GetEntityAt(i);
-
-            if (!meshIds.Has(entity) || !materialIds.Has(entity)) continue;
-            
             _renderObjects[_renderObjectCount++] = new RenderObject
             {
-                ModelMatrix = transforms.Get(entity).GetModelMatrix(),
-                MeshId = meshIds.Get(entity),
-                MaterialId = materialIds.Get(entity)
+                ModelMatrix = item.C1.GetModelMatrix(),
+                MaterialId = item.C2,
+                MeshId = item.C3
             };
         }
-
+        
         return _renderObjects.AsSpan(0, _renderObjectCount);
     }
 
