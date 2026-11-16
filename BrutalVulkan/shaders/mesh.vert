@@ -8,7 +8,9 @@ layout(location = 0) out vec2 uv;
 layout(push_constant) uniform VertexPushConstants 
 {
     mat4 mvp;
+    mat4 model;
 } pc;
+
 
 void main()
 {

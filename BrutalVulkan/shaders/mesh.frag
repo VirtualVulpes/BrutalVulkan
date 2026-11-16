@@ -9,7 +9,7 @@ layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform FragmentPushConstants
 {
-    layout(offset = 64) uint textureIndex;
+    layout(offset = 128) uint textureIndex;
 } pc;
 
 void main()

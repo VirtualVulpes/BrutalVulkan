@@ -1,11 +1,10 @@
 using Brutal.KtxApi;
-using BrutalVulkan.Materials;
 using BrutalVulkan.Rendering;
 using CommunityToolkit.HighPerformance;
 
 namespace BrutalVulkan.ECS;
 
-public sealed class World
+public sealed partial class World
 {
     private readonly List<UInt32> _generations = [];
     private readonly Stack<EntityId> _freeIds = [];
@@ -97,16 +96,4 @@ public sealed class World
         ValidateEntity(entity);
         GetPool<T>().Remove(entity);
     }
-    
-    public Query<T1> Query<T1>()
-        where T1 : struct
-        => new(GetPool<T1>());
-    
-    public Query<T1, T2> Query<T1, T2>()
-        where T1 : struct where T2 : struct
-        => new(GetPool<T1>(), GetPool<T2>());
-
-    public Query<T1, T2, T3> Query<T1, T2, T3>()
-        where T1 : struct where T2 : struct where T3 : struct
-        => new(GetPool<T1>(), GetPool<T2>(), GetPool<T3>());
 }

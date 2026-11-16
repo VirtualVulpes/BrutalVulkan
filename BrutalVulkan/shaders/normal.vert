@@ -7,7 +7,9 @@ layout(location = 0) out vec3 normal;
 layout(push_constant) uniform VertexPushConstants 
 {
     mat4 mvp;
+    mat4 model;
 } pc;
+
 
 void main()
 {

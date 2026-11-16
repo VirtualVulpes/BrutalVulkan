@@ -1,26 +1,47 @@
+using Brutal;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
-using BrutalVulkan.Materials;
+using BrutalVulkan.ECS.Components;
 
 namespace BrutalVulkan.Rendering;
 
+public enum RenderDataType
+{
+    Color,
+    Texture
+}
+
 public readonly struct RenderObject
 {
-    public MeshId MeshId { get; init; }
     public float4x4 ModelMatrix { get; init; }
-    public MaterialId MaterialId { get; init; }
+
+    public MeshId MeshId { get; init; }
+    public PipelineId PipelineId { get; init; }
+
+    public RenderDataType DataType { get; init; }
+    public float3 Color { get; init; }
+    public TextureId TextureId { get; init; }
 }
 
 public readonly struct GpuRenderObject
 {
     public GpuMesh Mesh { get; init; }
     public float4x4 ModelMatrix { get; init; }
-    public Material Material { get; init; }
+    public PipelineId PipelineId { get; init; }
+
+    public RenderDataType DataType { get; init; }
+    public float4 Color { get; init; }
+    public TextureId TextureId { get; init; }
 }
 
+public struct GpuLightBuffer
+{
+    public UInt32 LightCount;
+    public GpuLight[] Lights;
+}
 
 public sealed class Renderer : IDisposable
 {
@@ -43,17 +64,16 @@ public sealed class Renderer : IDisposable
     private readonly GlfwWindow _window;
     private readonly VmaAllocator _allocator;
     private readonly Queue _queue;
-    
-    private  VkDescriptorSet[] _descriptorSets;
-    private  ImGuiManager _imGuiManager;
-    private  MeshManager _meshManager;
-    private  MaterialManager _materialManager;
-    private  List<IRenderPass> _renderPasses;
+
+    private VkDescriptorSet[] _descriptorSets;
+    private ImGuiManager _imGuiManager;
+    private MeshManager _meshManager;
+    private List<IRenderPass> _renderPasses;
 
     private readonly FrameResources[] _frameResources = new FrameResources[Constants.MaxFramesInFlight];
 
     private VkSemaphore[] _renderFinished;
-    
+
     private VkSwapchainKHR _swapchain;
     private VkImage[] _swapchainImages;
     private VkImageView[] _swapchainImageViews;
@@ -62,6 +82,8 @@ public sealed class Renderer : IDisposable
     private Int32 _frameIndex = 0;
 
     private GpuRenderObject[] _gpuRenderObjects = [];
+
+    private BufferEx _lightsBuffer;
 
     public VkExtent2D Extent { get; private set; }
 
@@ -99,18 +121,94 @@ public sealed class Renderer : IDisposable
         CreateDepthResources();
     }
 
-    public void Initialize(PipelineManager pipelineManager, VkDescriptorSet[] descriptorSets, ImGuiManager imGuiManager, MeshManager meshManager, MaterialManager materialManager)
+    public void Initialize(PipelineManager pipelineManager, VkDescriptorSet[] descriptorSets, ImGuiManager imGuiManager,
+        MeshManager meshManager)
     {
         _descriptorSets = descriptorSets;
         _imGuiManager = imGuiManager;
         _meshManager = meshManager;
-        _materialManager = materialManager;
 
         _renderPasses =
         [
             new OpaquePass(pipelineManager),
             new ImGuiPass(_imGuiManager, pipelineManager)
         ];
+
+        CreateLightBuffer();
+        UpdateLightDescriptor();
+    }
+
+    private void CreateLightBuffer()
+    {
+        var bufferInfo = new BufferEx.CreateInfo
+        {
+            Name = "Lights Storage Buffer",
+            BufferSize = ByteSize.Of<UInt32>() * 4 + ByteSize.Of<GpuLight>() * Constants.MaxLights,
+            BufferUsage = VkBufferUsageFlags.StorageBufferBit,
+            AllocRequiredProperties = VkMemoryPropertyFlags.HostVisibleBit | VkMemoryPropertyFlags.HostCoherentBit
+        };
+        _lightsBuffer = _device.CreateBuffer(bufferInfo);
+    }
+
+    private unsafe void UpdateLights(ReadOnlySpan<GpuLight> lights)
+    {
+        if (lights.Length > Constants.MaxLights)
+            throw new ArgumentOutOfRangeException(nameof(lights));
+
+        var count = lights.Length;
+
+        var memory = _lightsBuffer.Map();
+
+        try
+        {
+            var dst = (Byte*)memory.MapPtr.Pointer;
+
+            Buffer.MemoryCopy(
+                &count,
+                dst,
+                ByteSize.Of<UInt32>() * 4 + ByteSize.Of<GpuLight>() * Constants.MaxLights,
+                ByteSize.Of<UInt32>()
+            );
+
+            fixed (GpuLight* lightsPtr = lights)
+            {
+                Buffer.MemoryCopy(
+                    lightsPtr,
+                    dst + ByteSize.Of<UInt32>() * 4,
+                    ByteSize.Of<GpuLight>() * Constants.MaxLights,
+                    ByteSize.Of<GpuLight>() * lights.Length
+                );
+            }
+        }
+        finally
+        {
+            memory.Unmap();
+        }
+    }
+
+    private unsafe void UpdateLightDescriptor()
+    {
+        var bufferInfo = new VkDescriptorBufferInfo
+        {
+            Buffer = _lightsBuffer.VkBuffer,
+            Offset = ByteSize.Zero,
+            Range = ByteSize.Of<UInt32>() + ByteSize.Of<GpuLight>() * Constants.MaxLights
+        };
+
+        ReadOnlySpan<VkWriteDescriptorSet> descriptorWrites =
+        [
+            new()
+            {
+                DstSet = _descriptorSets[0],
+                DstBinding = 1,
+                DstArrayElement = 0,
+                DescriptorCount = 1,
+                DescriptorType = VkDescriptorType.StorageBuffer,
+                BufferInfo = &bufferInfo
+            }
+        ];
+
+        _device.UpdateDescriptorSets(descriptorWrites, null);
     }
 
     private void CreateSwapchain()
@@ -248,7 +346,7 @@ public sealed class Renderer : IDisposable
         CreateSwapchain();
         CreateColorResources();
         CreateDepthResources();
-        
+
         _imGuiManager.UpdateDisplaySize();
     }
 
@@ -345,10 +443,10 @@ public sealed class Renderer : IDisposable
         return VkSampleCountFlags._1Bit;
     }
 
-    public void DrawFrame(ReadOnlySpan<RenderObject> renderObjects, float4x4 viewProj)
+    public void DrawFrame(ReadOnlySpan<RenderObject> renderObjects, Camera camera, ReadOnlySpan<GpuLight> lights)
     {
         if (!BeginFrame(out var imageIndex, out var isSuboptimal)) return;
-        RecordFrame(renderObjects, viewProj, imageIndex);
+        RecordFrame(renderObjects, camera, imageIndex, lights);
         SubmitFrame(imageIndex);
         PresentFrame(imageIndex, isSuboptimal);
 
@@ -375,13 +473,14 @@ public sealed class Renderer : IDisposable
 
         if (result is not (VkResult.Success or VkResult.SuboptimalKHR))
             throw new InvalidOperationException($"Failed to acquire swapchain image: {result}");
-        
+
         _frameResources[_frameIndex].CommandBuffer.Reset();
 
         return true;
     }
 
-    private unsafe void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, float4x4 viewProj, int imageIndex)
+    private unsafe void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, Camera camera, Int32 imageIndex,
+        ReadOnlySpan<GpuLight> lights)
     {
         var resources = _frameResources[_frameIndex];
 
@@ -394,9 +493,10 @@ public sealed class Renderer : IDisposable
             DepthImageView = resources.DepthImageView,
             ResolveImageView = _swapchainImageViews[imageIndex],
             Extent = Extent,
-            ViewProj = viewProj,
+            ViewProj = camera.GetView() * camera.GetProjection(),
             GlobalDescriptorSets = _descriptorSets,
-            FrameIndex = _frameIndex
+            FrameIndex = _frameIndex,
+            CameraPosition = camera.Position
         };
 
         resources.CommandBuffer.Begin(VkCommandBufferUsageFlags.OneTimeSubmitBit);
@@ -470,19 +570,24 @@ public sealed class Renderer : IDisposable
                 DepthAttachment = &depthAttachment
             }
         );
-        
-        if (_gpuRenderObjects.Length < renderObjects.Length) 
+
+        if (_gpuRenderObjects.Length < renderObjects.Length)
             Array.Resize(ref _gpuRenderObjects, renderObjects.Length);
 
         for (var i = 0; i < renderObjects.Length; i++)
         {
             _gpuRenderObjects[i] = new GpuRenderObject
             {
-                Material = _materialManager.GetMaterial(renderObjects[i].MaterialId),
+                PipelineId = renderObjects[i].PipelineId,
                 Mesh = _meshManager.GetGpuMesh(renderObjects[i].MeshId),
-                ModelMatrix = renderObjects[i].ModelMatrix
+                ModelMatrix = renderObjects[i].ModelMatrix,
+                TextureId = renderObjects[i].TextureId,
+                Color = new float4(renderObjects[i].Color, 0.0f),
+                DataType = renderObjects[i].DataType
             };
         }
+
+        UpdateLights(lights);
 
         foreach (var pass in _renderPasses)
         {
@@ -509,7 +614,7 @@ public sealed class Renderer : IDisposable
     private void SubmitFrame(Int32 imageIndex)
     {
         var resources = _frameResources[_frameIndex];
-        
+
         _device.ResetFences([resources.Fence]);
 
         _queue.Submit(
@@ -559,6 +664,8 @@ public sealed class Renderer : IDisposable
             _device.DestroyFence(resource.Fence, null);
             _device.DestroySemaphore(resource.ImageAvailable, null);
         }
+
+        _lightsBuffer.Dispose();
 
         CleanupSwapchain();
     }

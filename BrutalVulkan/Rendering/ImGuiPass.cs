@@ -41,7 +41,7 @@ public class ImGuiPass : IRenderPass
         cmdBuf.SetViewport(0, [viewport]);
 
         var scale = new float2(2.0f / drawData.DisplaySize.X, 2.0f / drawData.DisplaySize.Y);
-        var pushConsts = new PushConstantBlocks.ImGuiBlock
+        var pushConsts = new PushConstantBlocks.ImGui
         {
             Scale = scale,
             Translate = new float2(

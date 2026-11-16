@@ -22,6 +22,8 @@ public readonly struct RenderContext
     public VkDescriptorSet[] GlobalDescriptorSets { get; init; }
     
     public Int32 FrameIndex { get; init; }
+    
+    public float3 CameraPosition { get; init; }
 }
 
 public interface IRenderPass

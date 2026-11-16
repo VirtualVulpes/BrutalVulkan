@@ -2,9 +2,10 @@
 
 layout(location = 0) in vec3 position;
 
-layout(push_constant) uniform PushConstants 
+layout(push_constant) uniform VertexPushConstants 
 {
     mat4 mvp;
+    mat4 model;
 } pc;
 
 void main()

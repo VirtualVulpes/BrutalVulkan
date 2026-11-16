@@ -34,9 +34,9 @@ public sealed class OpaquePass : IRenderPass
 
         foreach (var renderObject in renderObjects)
         {
-            if (cachedPipelineId != renderObject.Material.PipelineId)
+            if (cachedPipelineId != renderObject.PipelineId)
             {
-                cachedPipelineId = renderObject.Material.PipelineId;
+                cachedPipelineId = renderObject.PipelineId;
                 pipeline = _pipelineManager.GetPipeline(cachedPipelineId);
 
                 context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, pipeline.Handle);
@@ -45,9 +45,32 @@ public sealed class OpaquePass : IRenderPass
                         null);
             }
 
+            var pushConsts = new PushConstantBlocks.Vertex
+            {
+                Mvp = renderObject.ModelMatrix * context.ViewProj,
+                Model = renderObject.ModelMatrix
+            };
+
             context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
-                renderObject.ModelMatrix * context.ViewProj);
-            renderObject.Material.Bind(context, pipeline);
+                pushConsts);
+
+            switch (renderObject.DataType)
+            {
+                case RenderDataType.Color:
+                    context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,
+                        ByteSize.Of<PushConstantBlocks.Vertex>(), renderObject.Color);
+                    break;
+                case RenderDataType.Texture:
+                    var fragment = new PushConstantBlocks.Fragment
+                    {
+                        TextureId = renderObject.TextureId.Value,
+                        CameraPosition = context.CameraPosition
+                    };
+
+                    context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,
+                        ByteSize.Of<PushConstantBlocks.Vertex>(), fragment);
+                    break;
+            }
 
             var gpuMesh = renderObject.Mesh;
 
