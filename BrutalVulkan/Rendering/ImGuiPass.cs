@@ -3,18 +3,18 @@ using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
+using BrutalVulkan.Rendering.Pipelines;
+using BrutalVulkan.UI;
 
 namespace BrutalVulkan.Rendering;
 
 public class ImGuiPass : IRenderPass
 {
     private readonly ImGuiManager _manager;
-    private readonly Pipeline _pipeline;
 
-    public ImGuiPass(ImGuiManager imGuiManager, Pipeline imGuiPipeline)
+    public ImGuiPass(ImGuiManager imGuiManager)
     {
         _manager = imGuiManager;
-        _pipeline = imGuiPipeline;
     }
 
     public void Record(in RenderContext context, ReadOnlySpan<RenderItem> _)
@@ -28,7 +28,7 @@ public class ImGuiPass : IRenderPass
 
         var cmdBuf = context.CommandBuffer;
 
-        cmdBuf.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
+        cmdBuf.BindPipeline(VkPipelineBindPoint.Graphics, _manager.Pipeline.Handle);
 
         var viewport = new VkViewport
         {
@@ -40,7 +40,7 @@ public class ImGuiPass : IRenderPass
         cmdBuf.SetViewport(0, [viewport]);
 
         var scale = new float2(2.0f / drawData.DisplaySize.X, 2.0f / drawData.DisplaySize.Y);
-        var pushConsts = new PushConstantBlocks.ImGui
+        var pushConsts = new PushConstantBlocks.ImGuiBlock
         {
             Scale = scale,
             Translate = new float2(
@@ -48,7 +48,7 @@ public class ImGuiPass : IRenderPass
                 -1.0f - drawData.DisplayPos.Y * scale.Y
             )
         };
-        cmdBuf.PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero, pushConsts);
+        cmdBuf.PushConstants(_manager.Pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero, pushConsts);
 
         cmdBuf.BindVertexBuffer(0, _manager.GetVertexBuffer(context.FrameIndex), ByteSize.Zero);
         cmdBuf.BindIndexBuffer(_manager.GetIndexBuffer(context.FrameIndex), VkIndexType.UInt16);
@@ -94,7 +94,7 @@ public class ImGuiPass : IRenderPass
 
                 if (set.VkHandle != lastSet.VkHandle)
                 {
-                    cmdBuf.BindDescriptorSet(VkPipelineBindPoint.Graphics, _pipeline.Layout, 0, set, null);
+                    cmdBuf.BindDescriptorSet(VkPipelineBindPoint.Graphics, _manager.Pipeline.Layout, 0, set, null);
                     lastSet = set;
                 }
 

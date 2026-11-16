@@ -1,25 +1,12 @@
-using System.Collections.Immutable;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.Rendering.Pipelines;
 
 public readonly record struct PipelineId(UInt32 Value)
 {
     public static readonly PipelineId Invalid = new(UInt32.MaxValue);
 }
-
-public readonly record struct PipelineDescription(
-    VkPipelineRenderingCreateInfo RenderingCreateInfo,
-    ShaderStages ShaderStages,
-    VertexInput VertexInput,
-    VkPipelineRasterizationStateCreateInfo RasterizationStateCreateInfo,
-    VkPipelineMultisampleStateCreateInfo MultisampleStateCreateInfo,
-    VkPipelineDepthStencilStateCreateInfo DepthStencilStateCreateInfo,
-    ImmutableArray<VkDescriptorSetLayout> DescriptorSetLayouts,
-    ImmutableArray<VkPushConstantRange> PushConstantRanges,
-    VkPipelineColorBlendStateCreateInfo ColorBlendStateCreateInfo
-);
 
 public sealed class PipelineManager : IDisposable
 {

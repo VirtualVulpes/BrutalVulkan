@@ -1,7 +1,7 @@
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.Rendering.Pipelines;
 
 public sealed class Pipeline : IDisposable
 {

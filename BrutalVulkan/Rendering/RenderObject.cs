@@ -1,5 +1,6 @@
 using Brutal.Numerics;
 using BrutalVulkan.Rendering.Meshes;
+using BrutalVulkan.Rendering.Pipelines;
 
 namespace BrutalVulkan.Rendering;
 

@@ -1,6 +1,7 @@
 using Brutal;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
+using BrutalVulkan.Rendering.Pipelines;
 
 namespace BrutalVulkan.Rendering;
 
@@ -37,7 +38,7 @@ public sealed class OpaquePass : IRenderPass
                         null);
             }
 
-            var pushConsts = new PushConstantBlocks.Vertex
+            var pushConsts = new PushConstantBlocks.VertexBlock
             {
                 Mvp = renderObject.ModelMatrix * context.ViewProj,
                 Model = renderObject.ModelMatrix
@@ -50,17 +51,17 @@ public sealed class OpaquePass : IRenderPass
             {
                 case RenderDataType.Color:
                     context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,
-                        ByteSize.Of<PushConstantBlocks.Vertex>(), renderObject.Color);
+                        ByteSize.Of<PushConstantBlocks.VertexBlock>(), renderObject.Color);
                     break;
                 case RenderDataType.Texture:
-                    var fragment = new PushConstantBlocks.Fragment
+                    var fragment = new PushConstantBlocks.FragmentBlock
                     {
                         TextureId = renderObject.TextureId.Value,
                         CameraPosition = context.CameraPosition
                     };
 
                     context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,
-                        ByteSize.Of<PushConstantBlocks.Vertex>(), fragment);
+                        ByteSize.Of<PushConstantBlocks.VertexBlock>(), fragment);
                     break;
             }
 

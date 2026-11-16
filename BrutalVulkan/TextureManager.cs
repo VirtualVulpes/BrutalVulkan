@@ -5,6 +5,7 @@ using Brutal.KtxApi.Abstractions;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
+using BrutalVulkan.Utility;
 using VkFormat = Brutal.VulkanApi.VkFormat;
 
 namespace BrutalVulkan;
@@ -31,7 +32,7 @@ public sealed class TextureManager : IDisposable
     }
 
     private unsafe Texture LoadTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator,
-        TextureColorSpace colorSpace)
+        TextureColorSpace colorSpace, TextureId id)
     {
         var filePath = Path.Join("textures", fileName);
         KtxErrorCode result =
@@ -111,7 +112,7 @@ public sealed class TextureManager : IDisposable
 
         var regions = new VkBufferImageCopy[numLevels];
 
-        App.TransitionImage(
+        ImageUtility.TransitionImage(
             textureImage.VkImage,
             VkImageLayout.Undefined,
             VkImageLayout.TransferDstOptimal,
@@ -147,7 +148,7 @@ public sealed class TextureManager : IDisposable
         commandBuffer.CopyBufferToImage(
             stagingBuffer.VkBuffer, textureImage.VkImage, VkImageLayout.TransferDstOptimal, regions);
 
-        App.TransitionImage(
+        ImageUtility.TransitionImage(
             textureImage.VkImage,
             VkImageLayout.TransferDstOptimal,
             VkImageLayout.ShaderReadOnlyOptimal,
@@ -175,7 +176,7 @@ public sealed class TextureManager : IDisposable
 
         ktx2.Dispose();
 
-        return new Texture(textureImage, textureImageView);
+        return new Texture(textureImage, textureImageView, id);
     }
 
     public TextureId AddTexture(String fileName, CommandBuffer commandBuffer, VmaAllocator allocator,
@@ -183,7 +184,8 @@ public sealed class TextureManager : IDisposable
     {
         var textureId = new TextureId(_nextId++);
 
-        var texture = LoadTexture(fileName, commandBuffer, allocator, colorSpace);
+        var texture = LoadTexture(fileName, commandBuffer, allocator, colorSpace, textureId);
+        
         var name = Path.GetFileNameWithoutExtension(fileName);
 
         _textures.Add(textureId, texture);

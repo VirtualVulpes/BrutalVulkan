@@ -6,7 +6,7 @@ namespace BrutalVulkan;
 public static class PushConstantBlocks
 {
     [StructLayout(LayoutKind.Explicit, Size = 16)]
-    public struct ImGui
+    public struct ImGuiBlock
     {
         [FieldOffset(0)]
         public float2 Scale;
@@ -16,7 +16,7 @@ public static class PushConstantBlocks
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 128)]
-    public struct Vertex
+    public struct VertexBlock
     {
         [FieldOffset(0)]
         public float4x4 Mvp;
@@ -26,7 +26,7 @@ public static class PushConstantBlocks
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 28)]
-    public struct Fragment
+    public struct FragmentBlock
     {
         [FieldOffset(0)]
         public UInt32 TextureId;

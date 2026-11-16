@@ -1,7 +1,7 @@
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.Rendering;
 
 public sealed class CommandBufferManager(DeviceEx device, Queue queue, VkCommandPool commandPool)
 {

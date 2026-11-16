@@ -2,11 +2,15 @@ using Brutal;
 using Brutal.GlfwApi;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
+using Brutal.ShaderCApi;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
+using BrutalVulkan.Rendering;
+using BrutalVulkan.Rendering.Pipelines;
+using BrutalVulkan.Utility;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.UI;
 
 public sealed class ImGuiManager : IDisposable
 {
@@ -37,6 +41,8 @@ public sealed class ImGuiManager : IDisposable
     private DescriptorPoolEx _descriptorPool;
 
     public DescriptorSetLayoutEx DescriptorSetLayout { get; private set; }
+    
+    public Pipeline Pipeline { get; private set; }
 
     public BufferEx GetVertexBuffer(Int32 frameIndex)
         => _vertexBuffers[frameIndex];
@@ -45,7 +51,7 @@ public sealed class ImGuiManager : IDisposable
         => _indexBuffers[frameIndex];
 
     public ImGuiManager(VmaAllocator allocator, DeviceEx device, CommandBufferManager cmdManager,
-        GlfwWindow window)
+        GlfwWindow window, PipelineBuildContext context)
     {
         _allocator = allocator;
         _device = device;
@@ -67,6 +73,8 @@ public sealed class ImGuiManager : IDisposable
         SetStyle();
 
         CreateResources();
+        
+        CreateImGuiPipeline(context);
 
         _window.OnMouseButton += OnMouseButton;
         _window.OnCursorPos += OnCursorPos;
@@ -128,6 +136,125 @@ public sealed class ImGuiManager : IDisposable
         };
         _fontSampler = _device.CreateSampler(samplerInfo, null);
     }
+
+    private unsafe void CreateImGuiPipeline(PipelineBuildContext context)
+    {
+        var shaders = new ShaderCreateInfo[]
+        {
+            new() { Name = "imGui.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "imGui.frag", Kind = ShaderKind.FragmentShader },
+        };
+        using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
+
+        var vertexInput = new VertexInput(1, 3).AddBinding(0, ByteSize.Of<ImDrawVert>(), VkVertexInputRate.Vertex)
+            .AddAttribute(0, 0, VkFormat.R32G32SFloat, ByteSize.Zero)
+            .AddAttribute(1, 0, VkFormat.R32G32SFloat, ByteSize.Of(8))
+            .AddAttribute(2, 0, VkFormat.R8G8B8A8UNorm, ByteSize.Of(16));
+
+        var format = context.ColorFormat;
+
+        var rendering = new VkPipelineRenderingCreateInfo
+        {
+            ColorAttachmentCount = 1,
+            ColorAttachmentFormats = &format,
+            DepthAttachmentFormat = VkFormat.D32SFloat
+        };
+
+        ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
+        [
+            new()
+            {
+                Offset = ByteSize.Zero,
+                Size = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
+                StageFlags = VkShaderStageFlags.VertexBit
+            }
+        ];
+
+        var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+        {
+            DepthTestEnable = false,
+            DepthWriteEnable = false,
+            DepthCompareOp = VkCompareOp.LessOrEqual,
+            DepthBoundsTestEnable = false,
+            StencilTestEnable = false
+        };
+
+        var multisampleState = new VkPipelineMultisampleStateCreateInfo
+        {
+            SampleShadingEnable = false,
+            RasterizationSamples = context.MsaaSamples
+        };
+
+        var rasterizationState = new VkPipelineRasterizationStateCreateInfo
+        {
+            PolygonMode = VkPolygonMode.Fill,
+            CullMode = VkCullModeFlags.None,
+            LineWidth = 1.0f,
+        };
+
+        var colorBlendState = new VkPipelineColorBlendAttachmentState
+        {
+            ColorWriteMask = VkColorComponentFlags.RBit | VkColorComponentFlags.GBit | VkColorComponentFlags.BBit |
+                             VkColorComponentFlags.ABit,
+            BlendEnable = true,
+            SrcColorBlendFactor = VkBlendFactor.SrcAlpha,
+            DstColorBlendFactor = VkBlendFactor.OneMinusSrcAlpha,
+            ColorBlendOp = VkBlendOp.Add,
+            SrcAlphaBlendFactor = VkBlendFactor.One,
+            DstAlphaBlendFactor = VkBlendFactor.OneMinusSrcAlpha,
+            AlphaBlendOp = VkBlendOp.Add
+        };
+
+        var colorBlendStateCreateInfo = new VkPipelineColorBlendStateCreateInfo
+        {
+            LogicOpEnable = false,
+            AttachmentCount = 1,
+            Attachments = &colorBlendState
+        };
+
+        var viewportState = new VkPipelineViewportStateCreateInfo
+        {
+            ViewportCount = 1,
+            ScissorCount = 1,
+        };
+        
+        Span<VkDynamicState> dynamicStates = [VkDynamicState.Viewport, VkDynamicState.Scissor];
+
+        var pipelineLayout = _device.CreatePipelineLayout([DescriptorSetLayout],
+            pushConstantRanges, null);
+
+        fixed (VkDynamicState* dynamicStatesPtr = dynamicStates)
+        {
+            var dynamicState = new VkPipelineDynamicStateCreateInfo
+            {
+                DynamicStateCount = dynamicStates.Length,
+                DynamicStates = dynamicStatesPtr
+            };
+
+            var pipeline = _device.CreateGraphicsPipeline(
+                VkPipelineCache.NullHandle,
+                new VkGraphicsPipelineCreateInfo
+                {
+                    Next = &rendering,
+                    StageCount = shaderStages.Count,
+                    Stages = shaderStages,
+                    VertexInputState = vertexInput,
+                    InputAssemblyState = Presets.InputAssembly.TriangleList,
+                    ViewportState = &viewportState,
+                    RasterizationState = &rasterizationState,
+                    MultisampleState = &multisampleState,
+                    ColorBlendState = &colorBlendStateCreateInfo,
+                    Layout = pipelineLayout,
+                    DynamicState = &dynamicState,
+                    DepthStencilState = &depthStencil
+                },
+                null
+            );
+
+            Pipeline = new Pipeline(_device, pipeline, pipelineLayout, new PipelineId(0));
+        }
+    }
+
 
     public void NewFrame(Single deltaTime)
     {
@@ -208,7 +335,7 @@ public sealed class ImGuiManager : IDisposable
         var view = image.CreateImageView(VkImageViewType._2D, range, image.Allocator.VkAllocator);
 
         var set = _device.AllocateDescriptorSet(_descriptorPool, DescriptorSetLayout);
-        
+
         var imageInfo = new VkDescriptorImageInfo
         {
             ImageLayout = VkImageLayout.ShaderReadOnlyOptimal,
@@ -254,11 +381,12 @@ public sealed class ImGuiManager : IDisposable
 
         var cmd = _cmdManager.BeginSingleTimeCommands();
 
-        App.TransitionImage(backend.Image.VkImage, oldLayout, VkImageLayout.TransferDstOptimal,
+        ImageUtility.TransitionImage(backend.Image.VkImage, oldLayout, VkImageLayout.TransferDstOptimal,
             VkPipelineStageFlags.TopOfPipeBit, VkPipelineStageFlags.TransferBit, VkAccessFlags.None,
             VkAccessFlags.TransferWriteBit, VkImageAspectFlags.ColorBit, cmd);
-        App.CopyBufferToImage(cmd, stagingBuffer.VkBuffer, backend.Image, texture.Width, texture.Height);
-        App.TransitionImage(backend.Image.VkImage, VkImageLayout.TransferDstOptimal, VkImageLayout.ShaderReadOnlyOptimal,
+        ImageUtility.CopyBufferToImage(cmd, stagingBuffer.VkBuffer, backend.Image, texture.Width, texture.Height);
+        ImageUtility.TransitionImage(backend.Image.VkImage, VkImageLayout.TransferDstOptimal,
+            VkImageLayout.ShaderReadOnlyOptimal,
             VkPipelineStageFlags.TransferBit, VkPipelineStageFlags.FragmentShaderBit, VkAccessFlags.TransferWriteBit,
             VkAccessFlags.ShaderReadBit, VkImageAspectFlags.ColorBit, cmd);
 
@@ -272,7 +400,7 @@ public sealed class ImGuiManager : IDisposable
     {
         if (_textures.Remove(texture.UniqueID, out var backend))
             FreeBackend(backend);
-        
+
         texture.SetTexID(ImTextureID.Invalid);
         texture.SetStatus(ImTextureStatus.Destroyed);
     }
@@ -386,11 +514,12 @@ public sealed class ImGuiManager : IDisposable
         {
             FreeBackend(backend);
         }
+
         _textures.Clear();
-        
+
         if (_fontSampler.IsNotNull())
             _device.DestroySampler(_fontSampler, null);
-        
+
         for (var i = 0; i < _vertexBuffers.Length; i++)
         {
             if (_vertexBuffers[i].IsNotNull())
@@ -401,6 +530,8 @@ public sealed class ImGuiManager : IDisposable
 
         _device.DestroyDescriptorSetLayout(DescriptorSetLayout, null);
         _device.DestroyDescriptorPool(_descriptorPool, null);
+
+        Pipeline.Dispose();
 
         _window.OnMouseButton -= OnMouseButton;
         _window.OnCursorPos -= OnCursorPos;

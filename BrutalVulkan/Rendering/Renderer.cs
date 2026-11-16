@@ -6,6 +6,9 @@ using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
 using BrutalVulkan.Rendering.GpuTypes;
 using BrutalVulkan.Rendering.Meshes;
+using BrutalVulkan.Rendering.Pipelines;
+using BrutalVulkan.UI;
+using BrutalVulkan.Utility;
 
 namespace BrutalVulkan.Rendering;
 
@@ -86,7 +89,7 @@ public sealed class Renderer : IDisposable
         _renderPasses =
         [
             new OpaquePass(),
-            new ImGuiPass(_imGuiManager, _pipelineManager.GetPipeline("ImGui"))
+            new ImGuiPass(_imGuiManager)
         ];
 
         CreateLightBuffer();
@@ -458,7 +461,7 @@ public sealed class Renderer : IDisposable
 
         _imGuiManager.RenderFrame(_frameIndex);
 
-        App.TransitionImage(
+        ImageUtility.TransitionImage(
             _swapchainImages[imageIndex],
             VkImageLayout.Undefined,
             VkImageLayout.ColorAttachmentOptimal,
@@ -470,7 +473,7 @@ public sealed class Renderer : IDisposable
             resources.CommandBuffer
         );
 
-        App.TransitionImage(
+        ImageUtility.TransitionImage(
             context.ColorImage.VkImage,
             VkImageLayout.Undefined,
             VkImageLayout.ColorAttachmentOptimal,
@@ -482,7 +485,7 @@ public sealed class Renderer : IDisposable
             context.CommandBuffer
         );
 
-        App.TransitionImage(
+        ImageUtility.TransitionImage(
             context.DepthImage.VkImage,
             VkImageLayout.Undefined,
             VkImageLayout.DepthAttachmentOptimal,
@@ -551,7 +554,7 @@ public sealed class Renderer : IDisposable
 
         resources.CommandBuffer.EndRendering();
 
-        App.TransitionImage(
+        ImageUtility.TransitionImage(
             _swapchainImages[imageIndex],
             VkImageLayout.ColorAttachmentOptimal,
             VkImageLayout.PresentSrcKHR,

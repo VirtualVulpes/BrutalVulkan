@@ -1,0 +1,17 @@
+using System.Collections.Immutable;
+using Brutal.VulkanApi;
+using Brutal.VulkanApi.Abstractions;
+
+namespace BrutalVulkan.Rendering.Pipelines;
+
+public readonly record struct PipelineDescription(
+    VkPipelineRenderingCreateInfo RenderingCreateInfo,
+    ShaderStages ShaderStages,
+    VertexInput VertexInput,
+    VkPipelineRasterizationStateCreateInfo RasterizationStateCreateInfo,
+    VkPipelineMultisampleStateCreateInfo MultisampleStateCreateInfo,
+    VkPipelineDepthStencilStateCreateInfo DepthStencilStateCreateInfo,
+    ImmutableArray<VkDescriptorSetLayout> DescriptorSetLayouts,
+    ImmutableArray<VkPushConstantRange> PushConstantRanges,
+    VkPipelineColorBlendStateCreateInfo ColorBlendStateCreateInfo
+);
