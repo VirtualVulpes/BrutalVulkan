@@ -14,4 +14,5 @@ public readonly struct RenderObject
     public RenderDataType DataType { get; init; }
     public float3 Color { get; init; }
     public TextureId TextureId { get; init; }
+    public Boolean IsSelected { get; init; }
 }

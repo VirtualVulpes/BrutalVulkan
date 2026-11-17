@@ -1,14 +1,48 @@
 using Brutal;
+using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using BrutalVulkan.Rendering.Pipelines;
+using BrutalVulkan.Utility;
 
-namespace BrutalVulkan.Rendering;
+namespace BrutalVulkan.Rendering.Passes;
 
 public sealed class OpaquePass : IRenderPass
 {
-    public void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
+    public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
     {
+        var colorAttachment = new VkRenderingAttachmentInfo
+        {
+            ImageView = context.FrameResources.ColorImageView.VkImageView,
+            ImageLayout = VkImageLayout.ColorAttachmentOptimal,
+            ResolveMode = VkResolveModeFlags.AverageBit,
+            ResolveImageView = context.ResolveImageView,
+            ResolveImageLayout = VkImageLayout.ColorAttachmentOptimal,
+            LoadOp = VkAttachmentLoadOp.Load,
+            StoreOp = VkAttachmentStoreOp.Store,
+            ClearValue = new VkClearColorValue { Float32 = new float4(0.01f, 0.01f, 0.01f, 1.0f) }
+        };
+
+        var depthAttachment = new VkRenderingAttachmentInfo
+        {
+            ImageView = context.FrameResources.DepthImageView.VkImageView,
+            ImageLayout = VkImageLayout.DepthAttachmentOptimal,
+            LoadOp = VkAttachmentLoadOp.Load,
+            StoreOp = VkAttachmentStoreOp.Store,
+            ClearValue = new VkClearDepthStencilValue { Depth = 1.0f, Stencil = 0 }
+        };
+
+        context.CommandBuffer.BeginRendering(
+            new VkRenderingInfo
+            {
+                RenderArea = new VkRect2D(context.Extent),
+                LayerCount = 1,
+                ColorAttachmentCount = 1,
+                ColorAttachments = &colorAttachment,
+                DepthAttachment = &depthAttachment
+            }
+        );
+        
         context.CommandBuffer.SetViewport(0, [
             new VkViewport
             {
@@ -24,7 +58,7 @@ public sealed class OpaquePass : IRenderPass
 
         var cachedPipelineId = PipelineId.Invalid;
         Pipeline? pipeline = null;
-
+        
         foreach (var renderObject in renderObjects)
         {
             if (cachedPipelineId != renderObject.Pipeline.Id)
@@ -34,7 +68,7 @@ public sealed class OpaquePass : IRenderPass
 
                 context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, pipeline.Handle);
                 context.CommandBuffer
-                    .BindDescriptorSets(VkPipelineBindPoint.Graphics, pipeline.Layout, 0, context.GlobalDescriptorSets,
+                    .BindDescriptorSets(VkPipelineBindPoint.Graphics, pipeline.Layout, 0, [context.GlobalDescriptorSet],
                         null);
             }
 
@@ -71,5 +105,7 @@ public sealed class OpaquePass : IRenderPass
             context.CommandBuffer.BindIndexBuffer(gpuMesh.IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
             context.CommandBuffer.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
         }
+        
+        context.CommandBuffer.EndRendering();
     }
 }

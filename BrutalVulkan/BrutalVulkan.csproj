@@ -37,23 +37,38 @@
         <None Update="shaders\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\line.frag">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <None Update="shaders\vertex\flatColor.vert">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\normal.frag">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <None Update="shaders\vertex\imGui.vert">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\normal.vert">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <None Update="shaders\vertex\mesh.vert">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\flatColor.vert">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <None Update="shaders\vertex\normal.vert">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\flatColor.frag">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <None Update="shaders\vertex\phongTexture.vert">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\phongTexture.vert">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <None Update="shaders\fragment\flatColor.frag">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="shaders\fragment\imGui.frag">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="shaders\fragment\line.frag">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="shaders\fragment\mesh.frag">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="shaders\fragment\normal.frag">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="shaders\fragment\phongTexture.frag">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>
     

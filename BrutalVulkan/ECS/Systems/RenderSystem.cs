@@ -32,25 +32,31 @@ public sealed class RenderSystem : ISystem
         
         foreach (var item in colorQuery)
         {
+            var isSelected = _world.HasComponent<SelectionComponent>(item.Entity);
+            
             _renderObjects[_renderObjectCount++] = new RenderObject
             {
                 ModelMatrix = TransformUtility.GetModelMatrix(item.C1),
                 PipelineId = item.C2.PipelineId,
                 MeshId = item.C3.MeshId,
                 Color = item.C4.Color,
-                DataType = RenderDataType.Color
+                DataType = RenderDataType.Color,
+                IsSelected = isSelected
             };
         }
         
         foreach (var item in textureQuery)
         {
+            var isSelected = _world.HasComponent<SelectionComponent>(item.Entity);
+
             _renderObjects[_renderObjectCount++] = new RenderObject
             {
                 ModelMatrix = TransformUtility.GetModelMatrix(item.C1),
                 PipelineId = item.C2.PipelineId,
                 MeshId = item.C3.MeshId,
                 TextureId = item.C4.TextureId,
-                DataType = RenderDataType.Texture
+                DataType = RenderDataType.Texture,
+                IsSelected = isSelected
             };
         }
         

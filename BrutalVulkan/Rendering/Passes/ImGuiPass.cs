@@ -5,8 +5,9 @@ using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using BrutalVulkan.Rendering.Pipelines;
 using BrutalVulkan.UI;
+using BrutalVulkan.Utility;
 
-namespace BrutalVulkan.Rendering;
+namespace BrutalVulkan.Rendering.Passes;
 
 public class ImGuiPass : IRenderPass
 {
@@ -17,14 +18,54 @@ public class ImGuiPass : IRenderPass
         _manager = imGuiManager;
     }
 
-    public void Record(in RenderContext context, ReadOnlySpan<RenderItem> _)
+    public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> _)
     {
+        var colorAttachment = new VkRenderingAttachmentInfo
+        {
+            ImageView = context.FrameResources.ColorImageView.VkImageView,
+            ImageLayout = VkImageLayout.ColorAttachmentOptimal,
+            ResolveMode = VkResolveModeFlags.AverageBit,
+            ResolveImageView = context.ResolveImageView,
+            ResolveImageLayout = VkImageLayout.ColorAttachmentOptimal,
+            LoadOp = VkAttachmentLoadOp.Load,
+            StoreOp = VkAttachmentStoreOp.Store,
+            ClearValue = new VkClearColorValue { Float32 = new float4(0.01f, 0.01f, 0.01f, 1.0f) }
+        };
+
+        var depthAttachment = new VkRenderingAttachmentInfo
+        {
+            ImageView = context.FrameResources.DepthImageView.VkImageView,
+            ImageLayout = VkImageLayout.DepthAttachmentOptimal,
+            LoadOp = VkAttachmentLoadOp.Load,
+            StoreOp = VkAttachmentStoreOp.Store,
+            ClearValue = new VkClearDepthStencilValue { Depth = 1.0f, Stencil = 0 }
+        };
+
+        context.CommandBuffer.BeginRendering(
+            new VkRenderingInfo
+            {
+                RenderArea = new VkRect2D(context.Extent),
+                LayerCount = 1,
+                ColorAttachmentCount = 1,
+                ColorAttachments = &colorAttachment,
+                DepthAttachment = &depthAttachment
+            }
+        );
+
         var drawData = ImGui.GetDrawData();
-        if (!drawData.Valid || drawData.CmdListsCount == 0) return;
+        if (!drawData.Valid || drawData.CmdListsCount == 0)
+        {
+            context.CommandBuffer.EndRendering();
+            return;
+        }
 
         var fbWidth = (Int32)(drawData.DisplaySize.X * drawData.FramebufferScale.X);
         var fbHeight = (Int32)(drawData.DisplaySize.Y * drawData.FramebufferScale.Y);
-        if (fbWidth <= 0 || fbHeight <= 0) return;
+        if (fbWidth <= 0 || fbHeight <= 0)
+        {
+            context.CommandBuffer.EndRendering();
+            return;
+        }
 
         var cmdBuf = context.CommandBuffer;
 
@@ -105,5 +146,7 @@ public class ImGuiPass : IRenderPass
             vertexOffset += cmdList.VtxBuffer.Count;
             indexOffset += cmdList.IdxBuffer.Count;
         }
+
+        context.CommandBuffer.EndRendering();
     }
 }

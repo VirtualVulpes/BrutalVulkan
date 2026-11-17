@@ -79,3 +79,11 @@ public sealed record CameraDef(Single AspectRatio, Single Fov, Single ZNear, Sin
             new CameraComponent { AspectRatio = AspectRatio, Fov = Fov, ZNear = ZNear, ZFar = ZFar });
     }
 }
+
+public sealed record SelectionDef() : IComponentDef
+{
+    public void Apply(World world, Entity entity, AssetResolver assets)
+    {
+        world.AddComponent(entity, new SelectionComponent());
+    }
+}

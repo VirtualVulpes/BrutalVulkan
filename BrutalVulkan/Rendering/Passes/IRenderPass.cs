@@ -1,4 +1,4 @@
-namespace BrutalVulkan.Rendering;
+namespace BrutalVulkan.Rendering.Passes;
 
 public interface IRenderPass
 {

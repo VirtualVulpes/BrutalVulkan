@@ -19,13 +19,15 @@ public static class DemoScene
                 floatQuat.Identity,
                 new float3(1.0f, 1.0f, 1.0f)),
             new MeshDef("cube"), new PipelineDef("Phong Texture"), new TextureDef("statue"),
-            new RotateDef(new float3(1.0f, 0.2f, 0.7f), new float3(0.2f, 1.0f, 0.4f))),
+            new RotateDef(new float3(1.0f, 0.2f, 0.7f), new float3(0.2f, 1.0f, 0.4f)),
+            new SelectionDef()),
         new EntityDef("viking_room",
             new TransformDef(
                 new float3(0.0f, -2.0f, -8.0f),
                 floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-90f)),
                 new float3(5.0f, 5.0f, 5.0f)),
-            new MeshDef("viking_room"), new PipelineDef("Phong Texture"), new TextureDef("viking_room")),
+            new MeshDef("viking_room"), new PipelineDef("Phong Texture"), new TextureDef("viking_room"),
+            new SelectionDef()),
         new EntityDef("textured_planet",
             new TransformDef(
                 new float3(6.0f, 1.0f, 0.0f),

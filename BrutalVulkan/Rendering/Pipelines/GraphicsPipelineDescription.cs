@@ -4,7 +4,7 @@ using Brutal.VulkanApi.Abstractions;
 
 namespace BrutalVulkan.Rendering.Pipelines;
 
-public readonly record struct PipelineDescription(
+public readonly record struct GraphicsPipelineDescription(
     VkPipelineRenderingCreateInfo RenderingCreateInfo,
     ShaderStages ShaderStages,
     VertexInput VertexInput,

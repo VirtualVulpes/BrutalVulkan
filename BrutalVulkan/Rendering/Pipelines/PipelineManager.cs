@@ -11,7 +11,7 @@ public readonly record struct PipelineId(UInt32 Value)
 public sealed class PipelineManager : IDisposable
 {
     private readonly DeviceEx _device;
-    
+
     private UInt32 _nextId;
 
     private readonly Dictionary<PipelineId, Pipeline> _pipelines = new();
@@ -22,11 +22,23 @@ public sealed class PipelineManager : IDisposable
         _device = device;
     }
 
-    public PipelineId AddPipeline(String name, PipelineDescription description)
+    public PipelineId AddGraphicsPipeline(String name, GraphicsPipelineDescription description)
     {
         var pipelineId = new PipelineId(_nextId++);
-        
-        var pipeline = CreatePipeline(description, pipelineId);
+
+        var pipeline = CreateGraphicsPipeline(description, pipelineId);
+
+        _pipelines.Add(pipelineId, pipeline);
+        _names.Add(name, pipelineId);
+
+        return pipelineId;
+    }
+
+    public PipelineId AddComputePipeline(String name, ComputePipelineDescription description)
+    {
+        var pipelineId = new PipelineId(_nextId++);
+
+        var pipeline = CreateComputePipeline(description, pipelineId);
 
         _pipelines.Add(pipelineId, pipeline);
         _names.Add(name, pipelineId);
@@ -38,18 +50,18 @@ public sealed class PipelineManager : IDisposable
     {
         return _pipelines[pipelineId];
     }
-    
+
     public Pipeline GetPipeline(String name)
     {
         return _pipelines[_names[name]];
     }
-    
+
     public PipelineId GetPipelineId(String name)
-    { 
+    {
         return _names[name];
     }
 
-    private unsafe Pipeline CreatePipeline(PipelineDescription description, PipelineId id)
+    private unsafe Pipeline CreateGraphicsPipeline(GraphicsPipelineDescription description, PipelineId id)
     {
         var viewportState = new VkPipelineViewportStateCreateInfo
         {
@@ -65,7 +77,8 @@ public sealed class PipelineManager : IDisposable
 
         Span<VkDynamicState> dynamicStates = [VkDynamicState.Viewport, VkDynamicState.Scissor];
 
-        var pipelineLayout = _device.CreatePipelineLayout(description.DescriptorSetLayouts.AsSpan(), description.PushConstantRanges.AsSpan(), null);
+        var pipelineLayout = _device.CreatePipelineLayout(description.DescriptorSetLayouts.AsSpan(),
+            description.PushConstantRanges.AsSpan(), null);
 
         fixed (VkDynamicState* dynamicStatesPtr = dynamicStates)
         {
@@ -74,7 +87,7 @@ public sealed class PipelineManager : IDisposable
                 DynamicStateCount = dynamicStates.Length,
                 DynamicStates = dynamicStatesPtr
             };
-            
+
             var pipeline = _device.CreateGraphicsPipeline(
                 VkPipelineCache.NullHandle,
                 new VkGraphicsPipelineCreateInfo
@@ -97,6 +110,23 @@ public sealed class PipelineManager : IDisposable
 
             return new Pipeline(_device, pipeline, pipelineLayout, id);
         }
+    }
+
+    private Pipeline CreateComputePipeline(ComputePipelineDescription description, PipelineId id)
+    {
+        var pipelineLayout = _device.CreatePipelineLayout(description.DescriptorSetLayouts.AsSpan(),
+            description.PushConstantRanges.AsSpan(), null);
+
+        var pipeline = _device.CreateComputePipeline(
+            VkPipelineCache.NullHandle,
+            new VkComputePipelineCreateInfo
+            {
+                Stage = description.ShaderStage,
+                Layout = pipelineLayout
+            },
+            null);
+
+        return new Pipeline(_device, pipeline, pipelineLayout, id);
     }
 
     public void Dispose()

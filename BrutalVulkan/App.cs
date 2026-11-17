@@ -100,7 +100,7 @@ public sealed class App : IDisposable
             MsaaSamples = _renderer.MsaaSamples
         };
         _imGuiManager = new ImGuiManager(_context.Allocator, _context.Device, _cmdManager, _window, pipelineBuildContext);
-        var pipelineFactory = new PipelineFactory(_context.Device, _pipelineManager, pipelineBuildContext, _descriptorManager.DescriptorSetLayout);
+        var pipelineFactory = new PipelineFactory(_context.Device, _pipelineManager, pipelineBuildContext, _descriptorManager);
         pipelineFactory.CreateDefaultPipelines();
 
         _meshManager = new MeshManager(_context.Allocator);
@@ -109,7 +109,7 @@ public sealed class App : IDisposable
         LoadTextures();
         LoadModels();
 
-        _renderer.Initialize(_pipelineManager, _descriptorManager.DescriptorSets, _imGuiManager, _meshManager);
+        _renderer.Initialize(_pipelineManager, _descriptorManager, _imGuiManager, _meshManager);
     }
 
     public void Run()
