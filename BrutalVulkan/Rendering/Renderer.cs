@@ -4,6 +4,7 @@ using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
+using BrutalVulkan.ECS.Systems;
 using BrutalVulkan.Rendering.GpuTypes;
 using BrutalVulkan.Rendering.Meshes;
 using BrutalVulkan.Rendering.Pipelines;
@@ -401,10 +402,10 @@ public sealed class Renderer : IDisposable
         return VkSampleCountFlags._1Bit;
     }
 
-    public void DrawFrame(ReadOnlySpan<RenderObject> renderObjects, Camera camera, ReadOnlySpan<GpuLight> lights)
+    public void DrawFrame(ReadOnlySpan<RenderObject> renderObjects, CameraData cameraData, ReadOnlySpan<GpuLight> lights)
     {
         if (!BeginFrame(out var imageIndex, out var isSuboptimal)) return;
-        RecordFrame(renderObjects, camera, imageIndex, lights);
+        RecordFrame(renderObjects, cameraData, imageIndex, lights);
         SubmitFrame(imageIndex);
         PresentFrame(imageIndex, isSuboptimal);
 
@@ -437,7 +438,7 @@ public sealed class Renderer : IDisposable
         return true;
     }
 
-    private unsafe void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, Camera camera, Int32 imageIndex,
+    private unsafe void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, CameraData cameraData, Int32 imageIndex,
         ReadOnlySpan<GpuLight> lights)
     {
         var resources = _frameResources[_frameIndex];
@@ -451,10 +452,10 @@ public sealed class Renderer : IDisposable
             DepthImageView = resources.DepthImageView,
             ResolveImageView = _swapchainImageViews[imageIndex],
             Extent = Extent,
-            ViewProj = camera.GetView() * camera.GetProjection(),
+            ViewProj = cameraData.View * cameraData.Projection,
             GlobalDescriptorSets = _descriptorSets,
             FrameIndex = _frameIndex,
-            CameraPosition = camera.Position
+            CameraPosition = cameraData.Position
         };
 
         resources.CommandBuffer.Begin(VkCommandBufferUsageFlags.OneTimeSubmitBit);

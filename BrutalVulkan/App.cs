@@ -4,7 +4,9 @@ using Brutal.GlfwApi;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
+using BrutalVulkan.Camera;
 using BrutalVulkan.ECS;
+using BrutalVulkan.ECS.Components;
 using BrutalVulkan.ECS.Systems;
 using BrutalVulkan.Rendering;
 using BrutalVulkan.Rendering.Meshes;
@@ -19,7 +21,6 @@ public sealed class App : IDisposable
     private GCHandle _gcHandle;
 
     private readonly InputManager _inputManager;
-    private readonly Camera _camera;
 
     private VulkanContext _context;
     private DescriptorManager _descriptorManager;
@@ -36,6 +37,8 @@ public sealed class App : IDisposable
 
     private World _world;
     private readonly SystemManager _systemManager;
+    private readonly CameraSystem _cameraSystem;
+    private CameraController _cameraController;
 
     public App()
     {
@@ -53,18 +56,19 @@ public sealed class App : IDisposable
         _window.OnFramebufferSize += OnFramebufferSize;
 
         _inputManager = new InputManager(_window);
-
-        _camera = new Camera();
-
+        
         InitVulkan();
 
         _world = new World();
         _systemManager = new SystemManager();
         _systemManager.AddSystem(new RenderSystem(_world));
         _systemManager.AddSystem(new RotateSystem(_world));
+        _cameraSystem = _systemManager.AddSystem(new CameraSystem(_world));
 
         var resolver = new AssetResolver(_meshManager, _pipelineManager, _textureManager);
-        new SceneLoader(resolver).Load(DemoScene.Create(), _world);
+        new SceneLoader(resolver, _cameraSystem).Load(DemoScene.Create(), _world);
+        
+        _cameraController = new CameraController(_world, _inputManager, _cameraSystem);
     }
 
     private static unsafe void OnFramebufferSize(GlfwWindow window, int2 size)
@@ -73,7 +77,10 @@ public sealed class App : IDisposable
         var app = (App)handle.Target!;
 
         app._renderer.OnFramebufferResize();
-        app._camera.AspectRatio = (Single)size.X / size.Y;
+
+        if (size.X == 0 || size.Y == 0) return;
+
+        app._cameraSystem.SetAspectRatio((Single)size.X / size.Y);
     }
 
     private void InitVulkan()
@@ -114,49 +121,25 @@ public sealed class App : IDisposable
         while (!_window.ShouldClose)
         {
             var now = Stopwatch.GetTimestamp();
-            var dt = Single.Min((Single)Stopwatch.GetElapsedTime(last, now).TotalSeconds, 0.1f);
+            var deltaTime = Single.Min((Single)Stopwatch.GetElapsedTime(last, now).TotalSeconds, 0.1f);
             last = now;
 
             _inputManager.Update();
 
             Glfw.PollEvents();
 
-            _systemManager.Update(dt);
+            _systemManager.Update(deltaTime);
 
             if (_inputManager.IsKeyPressed(GlfwKey.Escape))
                 _window.ShouldClose = true;
-
+            
+            _cameraController.Update(deltaTime);
+            
             switch (_inputManager.InputMode)
             {
                 case InputMode.CameraControl when _inputManager.IsKeyPressed(GlfwKey.Tab):
                     _inputManager.SetInputMode(InputMode.UiInteraction);
                     break;
-                case InputMode.CameraControl:
-                {
-                    // camera movement
-                    var movement = float3.Zero;
-                    var speed = 5.0f;
-                    if (_inputManager.IsKeyDown(GlfwKey.W))
-                        movement += float3.UnitZ;
-                    if (_inputManager.IsKeyDown(GlfwKey.S))
-                        movement -= float3.UnitZ;
-                    if (_inputManager.IsKeyDown(GlfwKey.A))
-                        movement -= float3.UnitX;
-                    if (_inputManager.IsKeyDown(GlfwKey.D))
-                        movement += float3.UnitX;
-                    if (_inputManager.IsKeyDown(GlfwKey.Space))
-                        movement += float3.UnitY;
-                    if (_inputManager.IsKeyDown(GlfwKey.LeftControl))
-                        movement -= float3.UnitY;
-                    _camera.MoveRelative(float3.NormalizeOrZero(movement) * dt * speed);
-
-                    // camera rotation
-                    var mouseDelta = _inputManager.MouseDelta;
-                    var sensitivity = 0.001f;
-                    _camera.Rotate((Single)mouseDelta.X * sensitivity, -(Single)mouseDelta.Y * sensitivity);
-
-                    break;
-                }
                 case InputMode.UiInteraction:
                 {
                     if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Left) &&
@@ -169,11 +152,11 @@ public sealed class App : IDisposable
                 }
             }
 
-            _imGuiManager.NewFrame(dt);
+            _imGuiManager.NewFrame(deltaTime);
 
             CreateUI();
 
-            _renderer.DrawFrame(renderSystem.BuildRenderObjects(), _camera, renderSystem.BuildGpuLights());
+            _renderer.DrawFrame(renderSystem.BuildRenderObjects(), _cameraSystem.GetActiveCameraData(), renderSystem.BuildGpuLights());
         }
     }
 

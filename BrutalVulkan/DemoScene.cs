@@ -1,3 +1,4 @@
+using Brutal.GltfApi;
 using Brutal.Numerics;
 using BrutalVulkan.ECS;
 
@@ -51,6 +52,32 @@ public static class DemoScene
                 floatQuat.Identity,
                 new float3(0.05f, 0.05f, 0.05f)),
             new MeshDef("sphere"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.2f, 0.2f, 0.4f)),
-            new LightDef(new float3(0.2f, 0.2f, 0.4f), 0.4f))
+            new LightDef(new float3(0.2f, 0.2f, 0.4f), 0.4f)),
+        new EntityDef("main_camera",
+            new TransformDef(
+                new float3(0.0f, 1.0f, 8.0f),
+                floatQuat.Identity,
+                new float3(0.2f, 0.2f, 0.2f)),
+            new MeshDef("cube"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
+            new CameraDef((Single)Constants.WindowWidth / Constants.WindowHeight, Single.DegreesToRadians(60.0f), 0.1f,
+                100.0f, true)),
+        new EntityDef("left_camera",
+            new TransformDef(
+                new float3(-6.0f, 6.0f, 10.0f),
+                floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(-30.0f)) *
+                floatQuat.CreateFromAxisAngle(float3.UnitX, Single.DegreesToRadians(-30.0f)),
+                new float3(0.2f, 0.2f, 0.2f)),
+            new MeshDef("cube"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
+            new CameraDef((Single)Constants.WindowWidth / Constants.WindowHeight, Single.DegreesToRadians(60.0f), 0.1f,
+                100.0f, false)),
+        new EntityDef("right_camera",
+            new TransformDef(
+                new float3(6.0f, 6.0f, 10.0f),
+                floatQuat.CreateFromAxisAngle(float3.UnitY, Single.DegreesToRadians(30.0f)) *
+                floatQuat.CreateFromAxisAngle(float3.UnitX, Single.DegreesToRadians(-30.0f)),
+                new float3(0.2f, 0.2f, 0.2f)),
+            new MeshDef("cube"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
+            new CameraDef((Single)Constants.WindowWidth / Constants.WindowHeight, Single.DegreesToRadians(60.0f), 0.1f,
+                100.0f, false)),
     ]);
 }

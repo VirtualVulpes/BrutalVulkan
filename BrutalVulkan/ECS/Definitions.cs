@@ -66,6 +66,16 @@ public sealed record LightDef(float3 Color, Single Intensity) : IComponentDef
 {
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
-        world.AddComponent(entity, new LightComponent{ Color = Color, Intensity = Intensity});
+        world.AddComponent(entity, new LightComponent { Color = Color, Intensity = Intensity });
+    }
+}
+
+public sealed record CameraDef(Single AspectRatio, Single Fov, Single ZNear, Single ZFar, Boolean IsActive)
+    : IComponentDef
+{
+    public void Apply(World world, Entity entity, AssetResolver assets)
+    {
+        world.AddComponent(entity,
+            new CameraComponent { AspectRatio = AspectRatio, Fov = Fov, ZNear = ZNear, ZFar = ZFar });
     }
 }
