@@ -41,7 +41,8 @@ public sealed class RenderSystem : ISystem
                 MeshId = item.C3.MeshId,
                 Color = item.C4.Color,
                 DataType = RenderDataType.Color,
-                IsSelected = isSelected
+                IsSelected = isSelected,
+                Entity = item.Entity
             };
         }
         
@@ -56,7 +57,8 @@ public sealed class RenderSystem : ISystem
                 MeshId = item.C3.MeshId,
                 TextureId = item.C4.TextureId,
                 DataType = RenderDataType.Texture,
-                IsSelected = isSelected
+                IsSelected = isSelected,
+                Entity = item.Entity
             };
         }
         

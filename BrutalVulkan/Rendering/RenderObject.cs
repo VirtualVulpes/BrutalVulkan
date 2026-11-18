@@ -1,4 +1,5 @@
 using Brutal.Numerics;
+using BrutalVulkan.ECS;
 using BrutalVulkan.Rendering.Meshes;
 using BrutalVulkan.Rendering.Pipelines;
 
@@ -15,4 +16,5 @@ public readonly struct RenderObject
     public float3 Color { get; init; }
     public TextureId TextureId { get; init; }
     public Boolean IsSelected { get; init; }
+    public Entity Entity { get; init; }
 }

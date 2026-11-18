@@ -1,0 +1,55 @@
+#version 460
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout (set = 0, binding = 0, rg32i) uniform readonly iimage2D inputSeeds;
+layout (set = 0, binding = 1, rg32i) uniform writeonly iimage2D outputSeeds;
+
+layout(push_constant) uniform PushConstants 
+{
+    int jumpDistance;
+} pc;
+
+int sqDist(ivec2 a, ivec2 b) 
+{
+    ivec2 d = a - b;
+    return d.x * d.x + d.y * d.y;
+}
+
+void main() 
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(inputSeeds);
+    
+    if (any(greaterThanEqual(pixel, size))) return;
+    
+    ivec2 bestSeed = imageLoad(inputSeeds, pixel).xy;
+    int bestDist = bestSeed.x >= 0 ? sqDist(pixel, bestSeed) : 0x7FFFFFFF;
+    
+    for (int y = -1; y <= 1; y++) 
+    {
+        for (int x = -1; x <= 1; x++) 
+        {
+            if (x == 0 && y == 0) continue;
+
+            ivec2 samplePixel = pixel + ivec2(x, y) * pc.jumpDistance;
+            
+            if (any(lessThan(samplePixel, ivec2(0))) || any(greaterThanEqual(samplePixel, size)))
+                continue;
+                
+            ivec2 candidate = imageLoad(inputSeeds, samplePixel).xy;
+            
+            if (candidate.x < 0) continue;
+            
+            int dist = sqDist(pixel, candidate);
+           
+            if (dist < bestDist) 
+            {
+                bestDist = dist;
+                bestSeed = candidate;
+            }
+        }
+    }
+    
+    imageStore(outputSeeds, pixel, ivec4(bestSeed, 0, 0));
+}

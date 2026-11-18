@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Brutal;
 using Brutal.Numerics;
 using Brutal.ShaderCApi;
@@ -42,9 +43,11 @@ public class PipelineFactory
         CreateWireframePipeline();
         CreateFlatColorPipeline();
         CreatePhongTexturePipeline();
-        CreateTestComputePipeline();
         CreateSelectionMaskPipeline();
-        CreateFullscreenTrianglePipeline();
+        CreateOutlineCompositePipeline();
+        CreateSeedInitPipeline();
+        CreateJumpFloodPipeline();
+        CreateEntityIdPipeline();
     }
 
     private unsafe void CreateOpaquePipeline()
@@ -124,8 +127,8 @@ public class PipelineFactory
     {
         var shaders = new ShaderCreateInfo[]
         {
-            new() { Name = "flatColor.vert", Kind = ShaderKind.VertexShader },
-            new() { Name = "flatColor.frag", Kind = ShaderKind.FragmentShader },
+            new() { Name = "flat_color.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "flat_color.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
 
@@ -197,8 +200,8 @@ public class PipelineFactory
     {
         var shaders = new ShaderCreateInfo[]
         {
-            new() { Name = "flatColor.vert", Kind = ShaderKind.VertexShader },
-            new() { Name = "flatColor.frag", Kind = ShaderKind.FragmentShader },
+            new() { Name = "flat_color.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "flat_color.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
 
@@ -270,8 +273,8 @@ public class PipelineFactory
     {
         var shaders = new ShaderCreateInfo[]
         {
-            new() { Name = "phongTexture.vert", Kind = ShaderKind.VertexShader },
-            new() { Name = "phongTexture.frag", Kind = ShaderKind.FragmentShader },
+            new() { Name = "phong_texture.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "phong_texture.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
 
@@ -344,7 +347,7 @@ public class PipelineFactory
         var shaders = new ShaderCreateInfo[]
         {
             new() { Name = "mesh.vert", Kind = ShaderKind.VertexShader },
-            new() { Name = "selectionMask.frag", Kind = ShaderKind.FragmentShader },
+            new() { Name = "selection_mask.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
 
@@ -412,12 +415,12 @@ public class PipelineFactory
         _pipelineManager.AddGraphicsPipeline("Selection Mask", pipelineDescription);
     }
 
-    private unsafe void CreateFullscreenTrianglePipeline()
+    private unsafe void CreateOutlineCompositePipeline()
     {
         var shaders = new ShaderCreateInfo[]
         {
             new() { Name = "fullscreen.vert", Kind = ShaderKind.VertexShader },
-            new() { Name = "display.frag", Kind = ShaderKind.FragmentShader },
+            new() { Name = "outline_composite.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
 
@@ -429,7 +432,6 @@ public class PipelineFactory
         {
             ColorAttachmentCount = 1,
             ColorAttachmentFormats = &format,
-            DepthAttachmentFormat = VkFormat.D32SFloat
         };
 
         var depthStencil = new VkPipelineDepthStencilStateCreateInfo
@@ -443,7 +445,7 @@ public class PipelineFactory
 
         var multisampleState = new VkPipelineMultisampleStateCreateInfo
         {
-            RasterizationSamples = _context.MsaaSamples
+            RasterizationSamples = VkSampleCountFlags._1Bit
         };
 
         var rasterizationState = new VkPipelineRasterizationStateCreateInfo
@@ -461,28 +463,128 @@ public class PipelineFactory
             RasterizationStateCreateInfo = rasterizationState,
             MultisampleStateCreateInfo = multisampleState,
             DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorManager.DisplayLayout],
+            DescriptorSetLayouts = [_descriptorManager.OutlineCompositeLayout],
             PushConstantRanges = [],
-            ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
+            ColorBlendStateCreateInfo = Presets.BlendState.BlendColorAlpha.Value
         };
 
-        _pipelineManager.AddGraphicsPipeline("Fullscreen Triangle", pipelineDescription);
+        _pipelineManager.AddGraphicsPipeline("Outline Composite", pipelineDescription);
     }
-
-    private void CreateTestComputePipeline()
+    
+    private void CreateSeedInitPipeline()
     {
-        var shader = new ShaderCreateInfo { Name = "test.comp", Kind = ShaderKind.ComputeShader };
+        var shader = new ShaderCreateInfo { Name = "seed_init.comp", Kind = ShaderKind.ComputeShader };
         var shaderStage = ShaderCreation.CreateShaderStage(shader, _device);
 
         var pipelineDescription = new ComputePipelineDescription
         {
             ShaderStage = shaderStage,
-            DescriptorSetLayouts = [_descriptorManager.ComputeLayout],
+            DescriptorSetLayouts = [_descriptorManager.SeedLayout],
             PushConstantRanges = []
         };
 
-        _pipelineManager.AddComputePipeline("Test Compute", pipelineDescription);
+        _pipelineManager.AddComputePipeline("Seed Init", pipelineDescription);
 
         _device.DestroyShaderModule(shaderStage.Module, null);
+    }
+    
+    private void CreateJumpFloodPipeline()
+    {
+        var shader = new ShaderCreateInfo { Name = "jump_flood.comp", Kind = ShaderKind.ComputeShader };
+        var shaderStage = ShaderCreation.CreateShaderStage(shader, _device);
+
+        ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
+        [
+            new()
+            {
+                Offset = ByteSize.Zero,
+                Size = ByteSize.Of<UInt32>(),
+                StageFlags = VkShaderStageFlags.ComputeBit
+            }
+        ];
+        
+        var pipelineDescription = new ComputePipelineDescription
+        {
+            ShaderStage = shaderStage,
+            DescriptorSetLayouts = [_descriptorManager.SeedAToBLayout, _descriptorManager.SeedBToALayout],
+            PushConstantRanges = [.. pushConstantRanges]
+        };
+
+        _pipelineManager.AddComputePipeline("Jump Flood", pipelineDescription);
+
+        _device.DestroyShaderModule(shaderStage.Module, null);
+    }
+    
+        private unsafe void CreateEntityIdPipeline()
+    {
+        var shaders = new ShaderCreateInfo[]
+        {
+            new() { Name = "mesh.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "entity_id.frag", Kind = ShaderKind.FragmentShader },
+        };
+        using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
+
+        var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
+
+        var format = VkFormat.R32UInt;
+
+        var rendering = new VkPipelineRenderingCreateInfo
+        {
+            ColorAttachmentCount = 1,
+            ColorAttachmentFormats = &format,
+            DepthAttachmentFormat = VkFormat.D32SFloat
+        };
+
+        ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
+        [
+            new()
+            {
+                Offset = ByteSize.Zero,
+                Size = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
+                StageFlags = VkShaderStageFlags.VertexBit
+            },
+            new()
+            {
+                Offset = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
+                Size = ByteSize.Of<PushConstantBlocks.EntityIdBlock>(),
+                StageFlags = VkShaderStageFlags.FragmentBit
+            }
+        ];
+
+        var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+        {
+            DepthTestEnable = true,
+            DepthWriteEnable = true,
+            DepthCompareOp = VkCompareOp.Less,
+            DepthBoundsTestEnable = false,
+            StencilTestEnable = false
+        };
+
+        var multisampleState = new VkPipelineMultisampleStateCreateInfo
+        {
+            RasterizationSamples = VkSampleCountFlags._1Bit
+        };
+
+        var rasterizationState = new VkPipelineRasterizationStateCreateInfo
+        {
+            PolygonMode = VkPolygonMode.Fill,
+            CullMode = VkCullModeFlags.BackBit,
+            LineWidth = 1.0f
+        };
+
+        var pipelineDescription = new GraphicsPipelineDescription
+        {
+            RenderingCreateInfo = rendering,
+            ShaderStages = shaderStages,
+            VertexInput = vertexInput,
+            RasterizationStateCreateInfo = rasterizationState,
+            MultisampleStateCreateInfo = multisampleState,
+            DepthStencilStateCreateInfo = depthStencil,
+            DescriptorSetLayouts = [_descriptorManager.GlobalLayout],
+            PushConstantRanges = [.. pushConstantRanges],
+            ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
+        };
+
+        _pipelineManager.AddGraphicsPipeline("Entity Id", pipelineDescription);
     }
 }

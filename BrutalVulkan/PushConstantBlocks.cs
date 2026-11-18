@@ -34,4 +34,18 @@ public static class PushConstantBlocks
         [FieldOffset(16)]
         public float3 CameraPosition;
     }
+    
+    [StructLayout(LayoutKind.Explicit, Size = 4)]
+    public struct JumpPassBlock
+    {
+        [FieldOffset(0)]
+        public UInt32 JumpDistance;
+    }
+        
+    [StructLayout(LayoutKind.Explicit, Size = 4)]
+    public struct EntityIdBlock
+    {
+        [FieldOffset(0)]
+        public UInt32 Id;
+    }
 }

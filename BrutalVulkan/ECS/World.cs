@@ -56,7 +56,7 @@ public sealed partial class World
             throw new InvalidOperationException($"Invalid or destroyed entity {entity}");
     }
 
-    private ComponentPool<T> GetPool<T>() where T : struct
+    public ComponentPool<T> GetPool<T>() where T : struct
     {
         var type = typeof(T);
 
@@ -87,9 +87,9 @@ public sealed partial class World
         return ref GetPool<T>().Get(entity);
     }
 
-    public void RemoveComponent<T>(Entity entity) where T : struct
+    public Boolean TryRemoveComponent<T>(Entity entity) where T : struct
     {
         ValidateEntity(entity);
-        GetPool<T>().Remove(entity);
+        return GetPool<T>().Remove(entity);
     }
 }

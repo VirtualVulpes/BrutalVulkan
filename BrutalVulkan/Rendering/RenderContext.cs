@@ -1,6 +1,5 @@
 using Brutal.Numerics;
 using Brutal.VulkanApi;
-using Brutal.VulkanApi.Abstractions;
 
 namespace BrutalVulkan.Rendering;
 
@@ -8,7 +7,7 @@ public readonly struct RenderContext
 {
     public FrameResources FrameResources { get; init; }
     
-    public VkImageView ResolveImageView { get; init; }
+    public VkImageView SwapchainImageView { get; init; }
 
     public VkExtent2D Extent { get; init; }
     public float4x4 ViewProj { get; init; }

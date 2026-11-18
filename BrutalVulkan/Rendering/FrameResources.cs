@@ -9,21 +9,36 @@ public struct FrameResources
     public VkFence Fence;
     public VkSemaphore ImageAvailable;
 
-    public ImageEx ColorImage;
+    public TrackedImage ColorImage;
     public ImageViewEx ColorImageView;
 
-    public ImageEx DepthImage;
+    public TrackedImage DepthImage;
     public ImageViewEx DepthImageView;
     
-    public ImageEx SelectionMaskImage;
+    public TrackedImage ResolveColorImage;
+    public ImageViewEx ResolveColorImageView;
+    
+    public TrackedImage SelectionMaskImage;
     public ImageViewEx SelectionMaskImageView;
     
-    public ImageEx SelectionMaskDepthImage;
-    public ImageViewEx SelectionMaskDepthImageView;
-    
-    public ImageEx ComputeImage;
+    public TrackedImage ComputeImage;
     public ImageViewEx ComputeImageView;
+    
+    public TrackedImage SeedAImage;
+    public ImageViewEx SeedAImageView;
 
+    public TrackedImage SeedBImage;
+    public ImageViewEx SeedBImageView;
+    
+    public TrackedImage EntityIdImage;
+    public ImageViewEx EntityIdImageView;
+    
+    public TrackedImage EntityIdDepthImage;
+    public ImageViewEx EntityIdDepthImageView;
+    
     public VkDescriptorSet ComputeDescriptorSet;
-    public VkDescriptorSet DisplayDescriptorSet;
+    public VkDescriptorSet OutlineCompositeDescriptorSet;
+    public VkDescriptorSet SeedDescriptorSet;
+    public VkDescriptorSet SeedAToBDescriptorSet;
+    public VkDescriptorSet SeedBToADescriptorSet;
 }

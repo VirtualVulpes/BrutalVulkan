@@ -37,10 +37,10 @@
         <None Update="shaders\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\vertex\flatColor.vert">
+        <None Update="shaders\vertex\flat_color.vert">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\vertex\imGui.vert">
+        <None Update="shaders\vertex\imgui.vert">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
         <None Update="shaders\vertex\mesh.vert">
@@ -49,13 +49,13 @@
         <None Update="shaders\vertex\normal.vert">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\vertex\phongTexture.vert">
+        <None Update="shaders\vertex\phong_texture.vert">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\fragment\flatColor.frag">
+        <None Update="shaders\fragment\flat_color.frag">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\fragment\imGui.frag">
+        <None Update="shaders\fragment\imgui.frag">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
         <None Update="shaders\fragment\line.frag">
@@ -67,7 +67,7 @@
         <None Update="shaders\fragment\normal.frag">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="shaders\fragment\phongTexture.frag">
+        <None Update="shaders\fragment\phong_texture.frag">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>

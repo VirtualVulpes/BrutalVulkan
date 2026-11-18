@@ -3,7 +3,6 @@ using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using BrutalVulkan.Rendering.Pipelines;
-using BrutalVulkan.Utility;
 
 namespace BrutalVulkan.Rendering.Passes;
 
@@ -11,14 +10,23 @@ public sealed class OpaquePass : IRenderPass
 {
     public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
     {
+        context.FrameResources.ColorImage.TransitionTo(context.CommandBuffer, VkImageLayout.ColorAttachmentOptimal,
+            VkPipelineStageFlags.ColorAttachmentOutputBit, VkAccessFlags.ColorAttachmentWriteBit);
+        
+        context.FrameResources.ResolveColorImage.TransitionTo(context.CommandBuffer, VkImageLayout.ColorAttachmentOptimal,
+            VkPipelineStageFlags.ColorAttachmentOutputBit, VkAccessFlags.ColorAttachmentWriteBit);
+        
+        context.FrameResources.DepthImage.TransitionTo(context.CommandBuffer, VkImageLayout.DepthAttachmentOptimal,
+            VkPipelineStageFlags.EarlyFragmentTestsBit, VkAccessFlags.DepthStencilAttachmentWriteBit, VkImageAspectFlags.DepthBit);
+        
         var colorAttachment = new VkRenderingAttachmentInfo
         {
             ImageView = context.FrameResources.ColorImageView.VkImageView,
             ImageLayout = VkImageLayout.ColorAttachmentOptimal,
             ResolveMode = VkResolveModeFlags.AverageBit,
-            ResolveImageView = context.ResolveImageView,
+            ResolveImageView = context.FrameResources.ResolveColorImageView.VkImageView,
             ResolveImageLayout = VkImageLayout.ColorAttachmentOptimal,
-            LoadOp = VkAttachmentLoadOp.Load,
+            LoadOp = VkAttachmentLoadOp.Clear,
             StoreOp = VkAttachmentStoreOp.Store,
             ClearValue = new VkClearColorValue { Float32 = new float4(0.01f, 0.01f, 0.01f, 1.0f) }
         };
@@ -27,7 +35,7 @@ public sealed class OpaquePass : IRenderPass
         {
             ImageView = context.FrameResources.DepthImageView.VkImageView,
             ImageLayout = VkImageLayout.DepthAttachmentOptimal,
-            LoadOp = VkAttachmentLoadOp.Load,
+            LoadOp = VkAttachmentLoadOp.Clear,
             StoreOp = VkAttachmentStoreOp.Store,
             ClearValue = new VkClearDepthStencilValue { Depth = 1.0f, Stencil = 0 }
         };
@@ -42,7 +50,7 @@ public sealed class OpaquePass : IRenderPass
                 DepthAttachment = &depthAttachment
             }
         );
-        
+
         context.CommandBuffer.SetViewport(0, [
             new VkViewport
             {
@@ -58,7 +66,7 @@ public sealed class OpaquePass : IRenderPass
 
         var cachedPipelineId = PipelineId.Invalid;
         Pipeline? pipeline = null;
-        
+
         foreach (var renderObject in renderObjects)
         {
             if (cachedPipelineId != renderObject.Pipeline.Id)
@@ -105,7 +113,7 @@ public sealed class OpaquePass : IRenderPass
             context.CommandBuffer.BindIndexBuffer(gpuMesh.IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
             context.CommandBuffer.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
         }
-        
+
         context.CommandBuffer.EndRendering();
     }
 }

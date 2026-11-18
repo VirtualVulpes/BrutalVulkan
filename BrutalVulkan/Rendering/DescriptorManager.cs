@@ -1,5 +1,6 @@
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
+using BrutalVulkan.ECS;
 
 namespace BrutalVulkan.Rendering;
 
@@ -13,7 +14,10 @@ public sealed class DescriptorManager : IDisposable
     public VkDescriptorSet GlobalSet { get; private set; }
 
     public DescriptorSetLayoutEx ComputeLayout { get; private set; }
-    public DescriptorSetLayoutEx DisplayLayout { get; private set; }
+    public DescriptorSetLayoutEx OutlineCompositeLayout { get; private set; }
+    public DescriptorSetLayoutEx SeedLayout { get; private set; }
+    public DescriptorSetLayoutEx SeedAToBLayout { get; private set; }
+    public DescriptorSetLayoutEx SeedBToALayout { get; private set; }
 
     public VkSampler TextureSampler { get; private set; }
 
@@ -22,9 +26,11 @@ public sealed class DescriptorManager : IDisposable
         _context = context;
 
         CreateDescriptorPool();
+        
         CreateGlobalDescriptorSet();
         CreateComputeDescriptorSet();
-        CreateDisplayDescriptorSet();
+        CreateOutlineCompositeSet();
+        CreateOutlineDescriptorSets();
 
         CreateTextureSampler();
     }
@@ -43,17 +49,17 @@ public sealed class DescriptorManager : IDisposable
             {
                 Type = VkDescriptorType.StorageBuffer, DescriptorCount = 1
             },
-            // test compute image
+            // test compute image and seed init images
             new()
             {
-                Type = VkDescriptorType.StorageImage, DescriptorCount = Constants.MaxFramesInFlight
+                Type = VkDescriptorType.StorageImage, DescriptorCount = Constants.MaxFramesInFlight * 20
             }
         ];
 
         var poolInfo = new DescriptorPoolEx.CreateInfo
         {
             Flags = VkDescriptorPoolCreateFlags.FreeDescriptorSetBit,
-            MaxSets = 1 + Constants.MaxFramesInFlight * 2,
+            MaxSets = 100,
             PoolSizes = pools
         };
 
@@ -127,7 +133,7 @@ public sealed class DescriptorManager : IDisposable
         ComputeLayout = _context.Device.CreateDescriptorSetLayout(layoutInfo, null);
     }
 
-    private void CreateDisplayDescriptorSet()
+    private void CreateOutlineCompositeSet()
     {
         VkDescriptorSetLayoutBinding[] bindings =
         [
@@ -135,6 +141,13 @@ public sealed class DescriptorManager : IDisposable
             {
                 Binding = 0,
                 DescriptorType = VkDescriptorType.CombinedImageSampler,
+                DescriptorCount = 1,
+                StageFlags = VkShaderStageFlags.FragmentBit
+            },
+            new()
+            {
+                Binding = 1,
+                DescriptorType = VkDescriptorType.StorageImage,
                 DescriptorCount = 1,
                 StageFlags = VkShaderStageFlags.FragmentBit
             }
@@ -145,9 +158,39 @@ public sealed class DescriptorManager : IDisposable
             Bindings = bindings,
         };
 
-        DisplayLayout = _context.Device.CreateDescriptorSetLayout(layoutInfo, null);
+        OutlineCompositeLayout = _context.Device.CreateDescriptorSetLayout(layoutInfo, null);
     }
+    
+    private void CreateOutlineDescriptorSets()
+    {
+        VkDescriptorSetLayoutBinding[] bindings =
+        [
+            new()
+            {
+                Binding = 0,
+                DescriptorType = VkDescriptorType.StorageImage,
+                DescriptorCount = 1,
+                StageFlags = VkShaderStageFlags.ComputeBit
+            },
+            new()
+            {
+                Binding = 1,
+                DescriptorType = VkDescriptorType.StorageImage,
+                DescriptorCount = 1,
+                StageFlags = VkShaderStageFlags.ComputeBit
+            }
+        ];
 
+        var layoutInfo = new DescriptorSetLayoutEx.CreateInfo
+        {
+            Bindings = bindings,
+        };
+
+        SeedLayout = _context.Device.CreateDescriptorSetLayout(layoutInfo, null);
+        SeedAToBLayout = _context.Device.CreateDescriptorSetLayout(layoutInfo, null);
+        SeedBToALayout = _context.Device.CreateDescriptorSetLayout(layoutInfo, null);
+    }
+    
     public unsafe void UpdateTextureDescriptor(Texture texture)
     {
         var imageInfo = new VkDescriptorImageInfo
@@ -194,13 +237,19 @@ public sealed class DescriptorManager : IDisposable
         _context.Device.UpdateDescriptorSets(writes, null);
     }
     
-    public unsafe void UpdateDisplayDescriptor(VkDescriptorSet descriptorSet, VkImageView imageView)
+    public unsafe void UpdateDisplayDescriptor(VkDescriptorSet descriptorSet, VkImageView colorImageView, VkImageView seedImageView)
     {
-        var imageInfo = new VkDescriptorImageInfo
+        var colorInfo = new VkDescriptorImageInfo
         {
             Sampler = TextureSampler,
-            ImageView = imageView,
+            ImageView = colorImageView,
             ImageLayout = VkImageLayout.ShaderReadOnlyOptimal
+        };
+        
+        var seedInfo = new VkDescriptorImageInfo
+        {
+            ImageView = seedImageView,
+            ImageLayout = VkImageLayout.General
         };
 
         ReadOnlySpan<VkWriteDescriptorSet> writes =
@@ -211,21 +260,79 @@ public sealed class DescriptorManager : IDisposable
                 DstBinding = 0,
                 DescriptorCount = 1,
                 DescriptorType = VkDescriptorType.CombinedImageSampler,
-                ImageInfo = &imageInfo
+                ImageInfo = &colorInfo
+            },
+            new()
+            {
+                DstSet = descriptorSet,
+                DstBinding = 1,
+                DescriptorCount = 1,
+                DescriptorType = VkDescriptorType.StorageImage,
+                ImageInfo = &seedInfo
             }
         ];
         _context.Device.UpdateDescriptorSets(writes, null);
     }
 
+    public unsafe void UpdateSeedDescriptor(VkDescriptorSet descriptorSet, VkImageView maskImageView, VkImageView seedImageView)
+    {
+        var maskInfo = new VkDescriptorImageInfo
+        {
+            ImageView = maskImageView,
+            ImageLayout = VkImageLayout.General
+        };
+        
+        var seedInfo = new VkDescriptorImageInfo
+        {
+            ImageView = seedImageView,
+            ImageLayout = VkImageLayout.General
+        };
+
+        ReadOnlySpan<VkWriteDescriptorSet> writes =
+        [
+            new()
+            {
+                DstSet = descriptorSet,
+                DstBinding = 0,
+                DescriptorCount = 1,
+                DescriptorType = VkDescriptorType.StorageImage,
+                ImageInfo = &maskInfo
+            },
+            new()
+            {
+                DstSet = descriptorSet,
+                DstBinding = 1,
+                DescriptorCount = 1,
+                DescriptorType = VkDescriptorType.StorageImage,
+                ImageInfo = &seedInfo
+            }
+        ];
+        _context.Device.UpdateDescriptorSets(writes, null);
+    }
+    
     public VkDescriptorSet AllocateComputeDescriptorSet()
     {
         return _context.Device.AllocateDescriptorSet(DescriptorPool, ComputeLayout);
     }
-
     
     public VkDescriptorSet AllocateDisplayDescriptorSet()
     {
-        return _context.Device.AllocateDescriptorSet(DescriptorPool, DisplayLayout);
+        return _context.Device.AllocateDescriptorSet(DescriptorPool, OutlineCompositeLayout);
+    }
+    
+    public VkDescriptorSet AllocateSeedDescriptorSet()
+    {
+        return _context.Device.AllocateDescriptorSet(DescriptorPool, SeedLayout);
+    }
+
+    public VkDescriptorSet AllocateSeedAToBDescriptorSet()
+    {
+        return _context.Device.AllocateDescriptorSet(DescriptorPool, SeedAToBLayout);
+    }
+    
+    public VkDescriptorSet AllocateSeedBToADescriptorSet()
+    {
+        return _context.Device.AllocateDescriptorSet(DescriptorPool, SeedBToALayout);
     }
 
     private void CreateTextureSampler()
@@ -259,6 +366,9 @@ public sealed class DescriptorManager : IDisposable
 
         _context.Device.DestroyDescriptorSetLayout(GlobalLayout, null);
         _context.Device.DestroyDescriptorSetLayout(ComputeLayout, null);
-        _context.Device.DestroyDescriptorSetLayout(DisplayLayout, null);
+        _context.Device.DestroyDescriptorSetLayout(OutlineCompositeLayout, null);
+        _context.Device.DestroyDescriptorSetLayout(SeedLayout, null);
+        _context.Device.DestroyDescriptorSetLayout(SeedAToBLayout, null);
+        _context.Device.DestroyDescriptorSetLayout(SeedBToALayout, null);
     }
 }

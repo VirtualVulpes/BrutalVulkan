@@ -70,7 +70,7 @@ public sealed record LightDef(float3 Color, Single Intensity) : IComponentDef
     }
 }
 
-public sealed record CameraDef(Single AspectRatio, Single Fov, Single ZNear, Single ZFar, Boolean IsActive)
+public sealed record CameraDef(Single AspectRatio, Single Fov, Single ZNear, Single ZFar)
     : IComponentDef
 {
     public void Apply(World world, Entity entity, AssetResolver assets)

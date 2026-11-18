@@ -22,6 +22,6 @@ public class TestComputePass : IRenderPass
         const Int32 localSizeX = 16;
         const Int32 localSizeY = 16;
         
-        context.CommandBuffer.Dispatch((context.Extent.Width + localSizeX - 1) / localSizeY, (context.Extent.Height + localSizeX - 1) / localSizeY, 1);
+        context.CommandBuffer.Dispatch((context.Extent.Width + localSizeX - 1) / localSizeX, (context.Extent.Height + localSizeY - 1) / localSizeY, 1);
     }
 }

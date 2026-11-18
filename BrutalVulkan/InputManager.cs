@@ -21,10 +21,10 @@ public sealed class InputManager : IDisposable
     private readonly BitArray _mouseActions = new((Int32)GlfwMouseButton.Last);
     private readonly BitArray _prevMouseActions = new((Int32)GlfwMouseButton.Last);
 
-    private Boolean _resetMouseDelta;
+    private Boolean _resetCursorDelta;
     
-    public double2 MousePos { get; private set; } = double2.Zero;
-    public double2 MouseDelta { get; private set; } = double2.Zero;
+    public double2 CursorPos { get; private set; } = double2.Zero;
+    public double2 CursorDelta { get; private set; } = double2.Zero;
 
     public InputMode InputMode { get; private set; } = InputMode.CameraControl;
 
@@ -45,16 +45,16 @@ public sealed class InputManager : IDisposable
 
     private void OnCursorPos(GlfwWindow window, double2 pos)
     {
-        if (_resetMouseDelta)
+        if (_resetCursorDelta)
         {
-            MouseDelta = double2.Zero;
-            _resetMouseDelta = false;
+            CursorDelta = double2.Zero;
+            _resetCursorDelta = false;
         }
         else
         {
-            MouseDelta += pos - MousePos;
+            CursorDelta += pos - CursorPos;
         }
-        MousePos = pos;
+        CursorPos = pos;
     }
 
     private void OnMouseButton(GlfwWindow window, GlfwMouseButton button, GlfwButtonAction action, GlfwModifier mods)
@@ -90,7 +90,7 @@ public sealed class InputManager : IDisposable
         
         _prevMouseActions.SetAll(false);
         _prevMouseActions.Or(_mouseActions);
-        MouseDelta = double2.Zero;
+        CursorDelta = double2.Zero;
     }
 
     public void SetInputMode(InputMode inputMode)
@@ -112,7 +112,7 @@ public sealed class InputManager : IDisposable
         
         InputMode = inputMode;
 
-        _resetMouseDelta = true;
+        _resetCursorDelta = true;
     }
 
     public void Dispose()

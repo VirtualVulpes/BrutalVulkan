@@ -13,10 +13,10 @@ public sealed class ComponentPool<T> : IComponentPool where T : struct
 
     public Boolean TryGetIndex(Entity entity, out Int32 index)
     {
-        var id = (Int32)entity.Id.Value;
+        var id = entity.Id.Value;
         index = -1;
 
-        if (id >= _sparse.Length) return false;
+        if (id >= (UInt32)_sparse.Length) return false;
 
         index = _sparse[id];
         return index >= 0 && index < Count && _entities[index] == entity;
@@ -64,9 +64,9 @@ public sealed class ComponentPool<T> : IComponentPool where T : struct
 
     public Boolean Has(Entity entity)
     {
-        var id = (Int32)entity.Id.Value;
+        var id = entity.Id.Value;
 
-        if (id >= _sparse.Length) return false;
+        if (id >= (UInt32)_sparse.Length) return false;
 
         var index = _sparse[id];
         

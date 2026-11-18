@@ -1,6 +1,5 @@
 using Brutal;
 using Brutal.GlfwApi;
-using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
@@ -12,6 +11,7 @@ using BrutalVulkan.Rendering.Passes.Compute;
 using BrutalVulkan.Rendering.Pipelines;
 using BrutalVulkan.UI;
 using BrutalVulkan.Utility;
+using CommunityToolkit.HighPerformance;
 
 namespace BrutalVulkan.Rendering;
 
@@ -23,13 +23,12 @@ public sealed class Renderer : IDisposable
     private readonly GlfwWindow _window;
     private readonly VmaAllocator _allocator;
     private readonly Queue _queue;
+    private readonly VkCommandPool _commandPool;
 
     private DescriptorManager _descriptorManager;
     private ImGuiManager _imGuiManager;
     private MeshManager _meshManager;
     private PipelineManager _pipelineManager;
-    private List<IRenderPass> _computePasses;
-    private List<IRenderPass> _renderPasses;
 
     private readonly FrameResources[] _frameResources = new FrameResources[Constants.MaxFramesInFlight];
 
@@ -42,9 +41,21 @@ public sealed class Renderer : IDisposable
     private Boolean _isFramebufferResized;
     private Int32 _frameIndex;
 
-    private RenderItem[] _renderObjects = [];
+    private readonly List<RenderItem> _renderItems = [];
 
     private BufferEx _lightsBuffer;
+
+    private SelectionMaskPass _selectionMaskPass;
+    private OpaquePass _opaquePass;
+    private OutlineCompositePass _outlineCompositePass;
+    private ImGuiPass _imGuiPass;
+
+    private SeedInitPass _seedInitPass;
+    private JumpFloodPass _jumpFloodPass;
+    private EntityIdPass _entityIdPass;
+
+    private EntityPicker _picker;
+    public EntityPicker Picker => _picker;
 
     public VkExtent2D Extent { get; private set; }
 
@@ -60,6 +71,7 @@ public sealed class Renderer : IDisposable
         _surface = surface;
         _window = window;
         _allocator = allocator;
+        _commandPool = commandPool;
         _queue = queue;
 
         MsaaSamples = (VkSampleCountFlags)Int32.Min(Constants.DefaultMsaa, (Int32)GetMaxSampleCount());
@@ -71,43 +83,39 @@ public sealed class Renderer : IDisposable
             _frameResources[i].CommandBuffer = _device.AllocateCommandBuffer(
                 new VkCommandBufferAllocateInfo
                 {
-                    CommandPool = commandPool,
+                    CommandPool = _commandPool,
                     Level = VkCommandBufferLevel.Primary
                 }
             );
         }
 
         CreateSwapchain();
-        CreateColorResources();
-        CreateDepthResources();
     }
 
     public void Initialize(PipelineManager pipelineManager, DescriptorManager descriptorManager,
         ImGuiManager imGuiManager,
-        MeshManager meshManager)
+        MeshManager meshManager, InputManager inputManager)
     {
         _descriptorManager = descriptorManager;
         _imGuiManager = imGuiManager;
         _meshManager = meshManager;
         _pipelineManager = pipelineManager;
 
-        _computePasses =
-        [
-            new TestComputePass(_pipelineManager.GetPipeline("Test Compute"))
-        ];
+        _picker = new EntityPicker(_device, inputManager);
 
-        _renderPasses =
-        [
-            new SelectionMaskPass(_pipelineManager.GetPipeline("Selection Mask")),
-            new ImageDisplayPass(_pipelineManager.GetPipeline("Fullscreen Triangle")),
-            new OpaquePass(),
-            new ImGuiPass(_imGuiManager)
-        ];
+        _selectionMaskPass = new SelectionMaskPass(_pipelineManager.GetPipeline("Selection Mask"));
+        _opaquePass = new OpaquePass();
+        _outlineCompositePass = new OutlineCompositePass(_pipelineManager.GetPipeline("Outline Composite"));
+        _imGuiPass = new ImGuiPass(_imGuiManager);
+
+        _seedInitPass = new SeedInitPass(_pipelineManager.GetPipeline("Seed Init"));
+        _jumpFloodPass = new JumpFloodPass(_pipelineManager.GetPipeline("Jump Flood"));
+        _entityIdPass = new EntityIdPass(_pipelineManager.GetPipeline("Entity Id"));
 
         CreateLightBuffer();
         UpdateLightDescriptor();
-        CreateSelectionMaskResources();
-        CreatePostProcessResources();
+
+        CreateResources();
     }
 
     private void CreateLightBuffer()
@@ -164,7 +172,7 @@ public sealed class Renderer : IDisposable
         {
             Buffer = _lightsBuffer.VkBuffer,
             Offset = ByteSize.Zero,
-            Range = ByteSize.Of<UInt32>() + ByteSize.Of<GpuLight>() * Constants.MaxLights
+            Range = ByteSize.Of<UInt32>() * 4 + ByteSize.Of<GpuLight>() * Constants.MaxLights
         };
 
         ReadOnlySpan<VkWriteDescriptorSet> descriptorWrites =
@@ -229,14 +237,6 @@ public sealed class Renderer : IDisposable
             },
             null
         );
-
-        _swapchainImages = new VkImage[_device.GetSwapchainImagesKHR_Count(_swapchain)];
-        _device.GetSwapchainImagesKHR_Write(_swapchain, _swapchainImages);
-
-        _swapchainImageViews = new VkImageView[_swapchainImages.Length];
-        CreateSwapchainImageViews();
-
-        _renderFinished = [.. _swapchainImages.Select(_ => _device.CreateSemaphore(new VkSemaphoreCreateInfo(), null))];
     }
 
     private VkSurfaceFormatKHR ChooseSurfaceFormat()
@@ -295,14 +295,26 @@ public sealed class Renderer : IDisposable
             resource.DepthImageView.Dispose();
             resource.DepthImage.Dispose();
 
+            resource.ResolveColorImageView.Dispose();
+            resource.ResolveColorImage.Dispose();
+
             resource.SelectionMaskImageView.Dispose();
             resource.SelectionMaskImage.Dispose();
-            
-            resource.SelectionMaskDepthImageView.Dispose();
-            resource.SelectionMaskDepthImage.Dispose();
-            
+
             resource.ComputeImageView.Dispose();
             resource.ComputeImage.Dispose();
+
+            resource.SeedAImageView.Dispose();
+            resource.SeedAImage.Dispose();
+
+            resource.SeedBImageView.Dispose();
+            resource.SeedBImage.Dispose();
+
+            resource.EntityIdImageView.Dispose();
+            resource.EntityIdImage.Dispose();
+
+            resource.EntityIdDepthImageView.Dispose();
+            resource.EntityIdDepthImage.Dispose();
         }
 
         _device.DestroySwapchainKHR(_swapchain, null);
@@ -325,12 +337,33 @@ public sealed class Renderer : IDisposable
 
         CleanupSwapchain();
         CreateSwapchain();
-        CreateColorResources();
-        CreateDepthResources();
-        CreateSelectionMaskResources();
-        CreatePostProcessResources();
+
+        CreateResources();
 
         _imGuiManager.UpdateDisplaySize();
+        _picker.Reset();
+    }
+
+    private void CreateResources()
+    {
+        CreateSwapchainResources();
+        CreateColorResources();
+        CreateDepthResources();
+        CreateEntityIdResources();
+        CreateSelectionMaskResources();
+        CreatePostProcessResources();
+        CreateOutlineResources();
+    }
+
+    private void CreateSwapchainResources()
+    {
+        _swapchainImages = new VkImage[_device.GetSwapchainImagesKHR_Count(_swapchain)];
+        _device.GetSwapchainImagesKHR_Write(_swapchain, _swapchainImages);
+
+        _swapchainImageViews = new VkImageView[_swapchainImages.Length];
+        CreateSwapchainImageViews();
+
+        _renderFinished = [.. _swapchainImages.Select(_ => _device.CreateSemaphore(new VkSemaphoreCreateInfo(), null))];
     }
 
     private void CreateColorResources()
@@ -355,6 +388,26 @@ public sealed class Renderer : IDisposable
             AllocRequiredProperties = VkMemoryPropertyFlags.DeviceLocalBit,
         };
 
+        var resolveColorInfo = new ImageEx.CreateInfo
+        {
+            Name = "Resolve Color Image",
+            ImageType = VkImageType._2D,
+            ImageFormat = SwapchainFormat.Format,
+            ImageExtent = new VkExtent3D
+            {
+                Width = Extent.Width,
+                Height = Extent.Height,
+                Depth = 1
+            },
+            ImageMipLevels = 1,
+            ImageArrayLayers = 1,
+            ImageSamples = VkSampleCountFlags._1Bit,
+            ImageTiling = VkImageTiling.Optimal,
+            ImageUsage = VkImageUsageFlags.ColorAttachmentBit | VkImageUsageFlags.SampledBit,
+            ImageSharingMode = VkSharingMode.Exclusive,
+            AllocRequiredProperties = VkMemoryPropertyFlags.DeviceLocalBit,
+        };
+
         var colorSubresourceRange = new VkImageSubresourceRange
         {
             AspectMask = VkImageAspectFlags.ColorBit,
@@ -365,9 +418,14 @@ public sealed class Renderer : IDisposable
         for (var i = 0; i < _frameResources.Length; i++)
         {
             var colorImage = _allocator.CreateImage(colorInfo);
-            _frameResources[i].ColorImage = colorImage;
+            _frameResources[i].ColorImage = new TrackedImage(colorImage);
             _frameResources[i].ColorImageView = colorImage.CreateImageView(
                 VkImageViewType._2D, colorSubresourceRange, colorImage.Allocator.VkAllocator);
+
+            var resolveColorImage = _allocator.CreateImage(resolveColorInfo);
+            _frameResources[i].ResolveColorImage = new TrackedImage(resolveColorImage);
+            _frameResources[i].ResolveColorImageView = resolveColorImage.CreateImageView(
+                VkImageViewType._2D, colorSubresourceRange, resolveColorImage.Allocator.VkAllocator);
         }
     }
 
@@ -403,19 +461,19 @@ public sealed class Renderer : IDisposable
         for (var i = 0; i < _frameResources.Length; i++)
         {
             var depthImage = _allocator.CreateImage(depthInfo);
-            _frameResources[i].DepthImage = depthImage;
+            _frameResources[i].DepthImage = new TrackedImage(depthImage);
             _frameResources[i].DepthImageView = depthImage.CreateImageView(
                 VkImageViewType._2D, depthSubresourceRange, depthImage.Allocator.VkAllocator);
         }
     }
 
-    private void CreateSelectionMaskResources()
+    private void CreateEntityIdResources()
     {
         var createInfo = new ImageEx.CreateInfo
         {
-            Name = "Selection Mask Image",
+            Name = "Entity Id Image",
             ImageType = VkImageType._2D,
-            ImageFormat = VkFormat.R8UNorm,
+            ImageFormat = VkFormat.R32UInt,
             ImageExtent = new VkExtent3D
             {
                 Width = Extent.Width,
@@ -426,7 +484,8 @@ public sealed class Renderer : IDisposable
             ImageArrayLayers = 1,
             ImageSamples = VkSampleCountFlags._1Bit,
             ImageTiling = VkImageTiling.Optimal,
-            ImageUsage = VkImageUsageFlags.ColorAttachmentBit | VkImageUsageFlags.SampledBit,
+            ImageUsage = VkImageUsageFlags.TransferSrcBit | VkImageUsageFlags.StorageBit |
+                         VkImageUsageFlags.SampledBit | VkImageUsageFlags.ColorAttachmentBit,
             ImageSharingMode = VkSharingMode.Exclusive,
             AllocRequiredProperties = VkMemoryPropertyFlags.DeviceLocalBit
         };
@@ -440,20 +499,9 @@ public sealed class Renderer : IDisposable
             LevelCount = 1
         };
 
-        for (var i = 0; i < _frameResources.Length; i++)
-        {
-            ref var resources = ref _frameResources[i];
-
-            var image = _allocator.CreateImage(createInfo);
-
-            resources.SelectionMaskImage = image;
-            resources.SelectionMaskImageView = image.CreateImageView(
-                VkImageViewType._2D, subresourceRange, image.Allocator.VkAllocator);
-        }
-        
         var depthInfo = new ImageEx.CreateInfo
         {
-            Name = "Selection Mask Depth Image",
+            Name = "Entity Id Depth Image",
             ImageType = VkImageType._2D,
             ImageFormat = VkFormat.D32SFloat,
             ImageExtent = new VkExtent3D
@@ -480,10 +528,61 @@ public sealed class Renderer : IDisposable
 
         for (var i = 0; i < _frameResources.Length; i++)
         {
+            ref var resources = ref _frameResources[i];
+
+            var image = _allocator.CreateImage(createInfo);
+            resources.EntityIdImage = new TrackedImage(image);
+            resources.EntityIdImageView = image.CreateImageView(
+                VkImageViewType._2D, subresourceRange, image.Allocator.VkAllocator);
+
             var depthImage = _allocator.CreateImage(depthInfo);
-            _frameResources[i].SelectionMaskDepthImage = depthImage;
-            _frameResources[i].SelectionMaskDepthImageView= depthImage.CreateImageView(
+            resources.EntityIdDepthImage = new TrackedImage(depthImage);
+            resources.EntityIdDepthImageView = depthImage.CreateImageView(
                 VkImageViewType._2D, depthSubresourceRange, depthImage.Allocator.VkAllocator);
+        }
+    }
+
+    private void CreateSelectionMaskResources()
+    {
+        var createInfo = new ImageEx.CreateInfo
+        {
+            Name = "Selection Mask Image",
+            ImageType = VkImageType._2D,
+            ImageFormat = VkFormat.R8UNorm,
+            ImageExtent = new VkExtent3D
+            {
+                Width = Extent.Width,
+                Height = Extent.Height,
+                Depth = 1
+            },
+            ImageMipLevels = 1,
+            ImageArrayLayers = 1,
+            ImageSamples = VkSampleCountFlags._1Bit,
+            ImageTiling = VkImageTiling.Optimal,
+            ImageUsage = VkImageUsageFlags.TransferDstBit | VkImageUsageFlags.StorageBit |
+                         VkImageUsageFlags.SampledBit | VkImageUsageFlags.ColorAttachmentBit,
+            ImageSharingMode = VkSharingMode.Exclusive,
+            AllocRequiredProperties = VkMemoryPropertyFlags.DeviceLocalBit
+        };
+
+        var subresourceRange = new VkImageSubresourceRange
+        {
+            AspectMask = VkImageAspectFlags.ColorBit,
+            BaseMipLevel = 0,
+            LayerCount = 1,
+            BaseArrayLayer = 0,
+            LevelCount = 1
+        };
+
+        for (var i = 0; i < _frameResources.Length; i++)
+        {
+            ref var resources = ref _frameResources[i];
+
+            var image = _allocator.CreateImage(createInfo);
+
+            resources.SelectionMaskImage = new TrackedImage(image);
+            resources.SelectionMaskImageView = image.CreateImageView(
+                VkImageViewType._2D, subresourceRange, image.Allocator.VkAllocator);
         }
     }
 
@@ -524,20 +623,89 @@ public sealed class Renderer : IDisposable
 
             var computeImage = _allocator.CreateImage(createInfo);
 
-            resources.ComputeImage = computeImage;
+            resources.ComputeImage = new TrackedImage(computeImage);
             resources.ComputeImageView = computeImage.CreateImageView(
                 VkImageViewType._2D, subresourceRange, computeImage.Allocator.VkAllocator);
 
             if (resources.ComputeDescriptorSet.IsNull())
                 resources.ComputeDescriptorSet = _descriptorManager.AllocateComputeDescriptorSet();
 
-            if (resources.DisplayDescriptorSet.IsNull())
-                resources.DisplayDescriptorSet = _descriptorManager.AllocateDisplayDescriptorSet();
+            if (resources.OutlineCompositeDescriptorSet.IsNull())
+                if (resources.OutlineCompositeDescriptorSet.IsNull())
+                    resources.OutlineCompositeDescriptorSet = _descriptorManager.AllocateDisplayDescriptorSet();
 
             _descriptorManager.UpdateComputeDescriptor(resources.ComputeDescriptorSet,
                 resources.ComputeImageView.VkImageView);
-            _descriptorManager.UpdateDisplayDescriptor(resources.DisplayDescriptorSet,
-                resources.ComputeImageView.VkImageView);
+        }
+    }
+
+    private void CreateOutlineResources()
+    {
+        var createInfo = new ImageEx.CreateInfo
+        {
+            Name = "Seed Init Image",
+            ImageType = VkImageType._2D,
+            ImageFormat = VkFormat.R32G32SInt,
+            ImageExtent = new VkExtent3D
+            {
+                Width = Extent.Width,
+                Height = Extent.Height,
+                Depth = 1
+            },
+            ImageMipLevels = 1,
+            ImageArrayLayers = 1,
+            ImageSamples = VkSampleCountFlags._1Bit,
+            ImageTiling = VkImageTiling.Optimal,
+            ImageUsage = VkImageUsageFlags.TransferDstBit | VkImageUsageFlags.StorageBit | VkImageUsageFlags.SampledBit,
+            ImageSharingMode = VkSharingMode.Exclusive,
+            AllocRequiredProperties = VkMemoryPropertyFlags.DeviceLocalBit
+        };
+
+        var subresourceRange = new VkImageSubresourceRange
+        {
+            AspectMask = VkImageAspectFlags.ColorBit,
+            BaseMipLevel = 0,
+            LayerCount = 1,
+            BaseArrayLayer = 0,
+            LevelCount = 1
+        };
+
+        for (var i = 0; i < _frameResources.Length; i++)
+        {
+            ref var resources = ref _frameResources[i];
+
+            var imageA = _allocator.CreateImage(createInfo);
+
+            resources.SeedAImage = new TrackedImage(imageA);
+            resources.SeedAImageView = imageA.CreateImageView(
+                VkImageViewType._2D, subresourceRange, imageA.Allocator.VkAllocator);
+
+            var imageB = _allocator.CreateImage(createInfo);
+
+            resources.SeedBImage = new TrackedImage(imageB);
+            resources.SeedBImageView = imageB.CreateImageView(
+                VkImageViewType._2D, subresourceRange, imageB.Allocator.VkAllocator);
+
+            if (resources.SeedDescriptorSet.IsNull())
+                resources.SeedDescriptorSet = _descriptorManager.AllocateSeedDescriptorSet();
+
+            if (resources.SeedAToBDescriptorSet.IsNull())
+                resources.SeedAToBDescriptorSet = _descriptorManager.AllocateSeedAToBDescriptorSet();
+
+            if (resources.SeedBToADescriptorSet.IsNull())
+                resources.SeedBToADescriptorSet = _descriptorManager.AllocateSeedBToADescriptorSet();
+
+            _descriptorManager.UpdateSeedDescriptor(resources.SeedDescriptorSet,
+                resources.SelectionMaskImageView.VkImageView, resources.SeedAImageView.VkImageView);
+
+            _descriptorManager.UpdateSeedDescriptor(resources.SeedAToBDescriptorSet,
+                resources.SeedAImageView.VkImageView, resources.SeedBImageView.VkImageView);
+
+            _descriptorManager.UpdateSeedDescriptor(resources.SeedBToADescriptorSet,
+                resources.SeedBImageView.VkImageView, resources.SeedAImageView.VkImageView);
+
+            _descriptorManager.UpdateDisplayDescriptor(resources.OutlineCompositeDescriptorSet,
+                resources.ResolveColorImageView.VkImageView, resources.SeedAImageView.VkImageView);
         }
     }
 
@@ -573,6 +741,8 @@ public sealed class Renderer : IDisposable
     {
         _device.WaitForFence(_frameResources[_frameIndex].Fence, -1);
 
+        _picker.Collect(_frameIndex);
+
         var result = _device.AcquireNextImageKHR(_swapchain, -1, _frameResources[_frameIndex].ImageAvailable,
             VkFence.NullHandle,
             out imageIndex
@@ -595,7 +765,7 @@ public sealed class Renderer : IDisposable
         return true;
     }
 
-    private unsafe void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, CameraData cameraData, Int32 imageIndex,
+    private void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, CameraData cameraData, Int32 imageIndex,
         ReadOnlySpan<GpuLight> lights)
     {
         var resources = _frameResources[_frameIndex];
@@ -603,7 +773,7 @@ public sealed class Renderer : IDisposable
         var context = new RenderContext
         {
             FrameResources = resources,
-            ResolveImageView = _swapchainImageViews[imageIndex],
+            SwapchainImageView = _swapchainImageViews[imageIndex],
             Extent = Extent,
             ViewProj = cameraData.View * cameraData.Projection,
             CameraPosition = cameraData.Position,
@@ -612,98 +782,54 @@ public sealed class Renderer : IDisposable
         };
 
         resources.CommandBuffer.Begin(VkCommandBufferUsageFlags.OneTimeSubmitBit);
-        
+
         ImageUtility.TransitionImage(
-            resources.ComputeImage.VkImage,
+            _swapchainImages[imageIndex],
             VkImageLayout.Undefined,
-            VkImageLayout.General,
-            VkPipelineStageFlags.TopOfPipeBit,
-            VkPipelineStageFlags.ComputeShaderBit,
+            VkImageLayout.ColorAttachmentOptimal,
+            VkPipelineStageFlags.ColorAttachmentOutputBit,
+            VkPipelineStageFlags.ColorAttachmentOutputBit,
             VkAccessFlags.None,
-            VkAccessFlags.ShaderWriteBit,
-            VkImageAspectFlags.ColorBit,
-            resources.CommandBuffer
-        );
-
-        foreach (var pass in _computePasses)
-        {
-            pass.Record(context, []);
-        }
-
-        ImageUtility.TransitionImage(
-            resources.ComputeImage.VkImage,
-            VkImageLayout.General,
-            VkImageLayout.ShaderReadOnlyOptimal,
-            VkPipelineStageFlags.ComputeShaderBit,
-            VkPipelineStageFlags.FragmentShaderBit,
-            VkAccessFlags.ShaderWriteBit,
-            VkAccessFlags.ShaderReadBit,
+            VkAccessFlags.ColorAttachmentWriteBit,
             VkImageAspectFlags.ColorBit,
             resources.CommandBuffer
         );
 
         _imGuiManager.RenderFrame(_frameIndex);
 
-        ImageUtility.TransitionImage(
-            _swapchainImages[imageIndex],
-            VkImageLayout.Undefined,
-            VkImageLayout.ColorAttachmentOptimal,
-            VkPipelineStageFlags.TopOfPipeBit,
-            VkPipelineStageFlags.ColorAttachmentOutputBit,
-            VkAccessFlags.None,
-            VkAccessFlags.ColorAttachmentWriteBit,
-            VkImageAspectFlags.ColorBit,
-            resources.CommandBuffer
-        );
-        
-        ImageUtility.TransitionImage(
-            context.FrameResources.ColorImage.VkImage,
-            VkImageLayout.Undefined,
-            VkImageLayout.ColorAttachmentOptimal,
-            VkPipelineStageFlags.TopOfPipeBit,
-            VkPipelineStageFlags.ColorAttachmentOutputBit,
-            VkAccessFlags.None,
-            VkAccessFlags.ColorAttachmentWriteBit,
-            VkImageAspectFlags.ColorBit,
-            context.CommandBuffer
-        );
-
-        ImageUtility.TransitionImage(
-            context.FrameResources.DepthImage.VkImage,
-            VkImageLayout.Undefined,
-            VkImageLayout.DepthAttachmentOptimal,
-            VkPipelineStageFlags.TopOfPipeBit,
-            VkPipelineStageFlags.EarlyFragmentTestsBit | VkPipelineStageFlags.LateFragmentTestsBit,
-            VkAccessFlags.None,
-            VkAccessFlags.DepthStencilAttachmentWriteBit,
-            VkImageAspectFlags.DepthBit,
-            context.CommandBuffer
-        );
-        
-        if (_renderObjects.Length < renderObjects.Length)
-            Array.Resize(ref _renderObjects, renderObjects.Length);
-
-        for (var i = 0; i < renderObjects.Length; i++)
+        _renderItems.Clear();
+        foreach (var o in renderObjects)
         {
-            _renderObjects[i] = new RenderItem
-            {
-                Pipeline = _pipelineManager.GetPipeline(renderObjects[i].PipelineId),
-                GpuMesh = _meshManager.GetGpuMesh(renderObjects[i].MeshId),
-                ModelMatrix = renderObjects[i].ModelMatrix,
-                TextureId = renderObjects[i].TextureId,
-                Color = renderObjects[i].Color,
-                DataType = renderObjects[i].DataType,
-                IsSelected = renderObjects[i].IsSelected
-            };
+            _renderItems.Add(new RenderItem
+                {
+                    Pipeline = _pipelineManager.GetPipeline(o.PipelineId),
+                    GpuMesh = _meshManager.GetGpuMesh(o.MeshId),
+                    ModelMatrix = o.ModelMatrix,
+                    TextureId = o.TextureId,
+                    Color = o.Color,
+                    DataType = o.DataType,
+                    IsSelected = o.IsSelected,
+                    Entity = o.Entity
+                }
+            );
         }
+        var items = _renderItems.AsSpan();
 
         UpdateLights(lights);
 
-        foreach (var pass in _renderPasses)
-        {
-            pass.Record(context, _renderObjects);
-        }
-        
+        _entityIdPass.Record(context, items);
+        _picker.Record(resources.CommandBuffer, _frameIndex, resources.EntityIdImage, Extent);
+
+        _selectionMaskPass.Record(context, items);
+
+        _opaquePass.Record(context, items);
+
+        _seedInitPass.Record(context, items);
+        _jumpFloodPass.Record(context, items);
+        _outlineCompositePass.Record(context, items);
+
+        _imGuiPass.Record(context, items);
+
         ImageUtility.TransitionImage(
             _swapchainImages[imageIndex],
             VkImageLayout.ColorAttachmentOptimal,
@@ -774,6 +900,7 @@ public sealed class Renderer : IDisposable
         }
 
         _lightsBuffer.Dispose();
+        _picker.Dispose();
 
         CleanupSwapchain();
     }

@@ -141,8 +141,8 @@ public sealed class ImGuiManager : IDisposable
     {
         var shaders = new ShaderCreateInfo[]
         {
-            new() { Name = "imGui.vert", Kind = ShaderKind.VertexShader },
-            new() { Name = "imGui.frag", Kind = ShaderKind.FragmentShader },
+            new() { Name = "imgui.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "imgui.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
 
@@ -156,8 +156,7 @@ public sealed class ImGuiManager : IDisposable
         var rendering = new VkPipelineRenderingCreateInfo
         {
             ColorAttachmentCount = 1,
-            ColorAttachmentFormats = &format,
-            DepthAttachmentFormat = VkFormat.D32SFloat
+            ColorAttachmentFormats = &format
         };
 
         ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
@@ -182,7 +181,7 @@ public sealed class ImGuiManager : IDisposable
         var multisampleState = new VkPipelineMultisampleStateCreateInfo
         {
             SampleShadingEnable = false,
-            RasterizationSamples = context.MsaaSamples
+            RasterizationSamples = VkSampleCountFlags._1Bit
         };
 
         var rasterizationState = new VkPipelineRasterizationStateCreateInfo
@@ -390,7 +389,7 @@ public sealed class ImGuiManager : IDisposable
             VkPipelineStageFlags.TransferBit, VkPipelineStageFlags.FragmentShaderBit, VkAccessFlags.TransferWriteBit,
             VkAccessFlags.ShaderReadBit, VkImageAspectFlags.ColorBit, cmd);
 
-        _cmdManager.EndSingleTimeCommands(ref cmd);
+        _cmdManager.EndSingleTimeCommands(cmd);
         stagingBuffer.Dispose();
 
         texture.SetStatus(ImTextureStatus.OK);

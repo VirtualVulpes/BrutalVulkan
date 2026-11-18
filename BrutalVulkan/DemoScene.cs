@@ -1,4 +1,3 @@
-using Brutal.GltfApi;
 using Brutal.Numerics;
 using BrutalVulkan.ECS;
 
@@ -40,7 +39,7 @@ public static class DemoScene
                 floatQuat.CreateFromAxisAngle(float3.UnitZ, Single.DegreesToRadians(23.44f)), // earth's axial tilt
                 new float3(1.0f, 1.0f, 1.0f)),
             new MeshDef("planet"), new PipelineDef("Wireframe"), new ColorDef(new float3(0.6f, 0.3f, 0.6f)),
-            new RotateDef(new float3(0.0f, 0.15f, 0.0f), new float3(0.0f, 0.05f, 0.0f))),
+            new RotateDef(new float3(0.0f, 0.15f, 0.0f), new float3(0.0f, 0.05f, 0.0f)), new SelectionDef()),
         new EntityDef("main_light",
             new TransformDef(
                 new float3(-2.0f, 6.5f, -2.0f),
@@ -62,7 +61,7 @@ public static class DemoScene
                 new float3(0.2f, 0.2f, 0.2f)),
             new MeshDef("cube"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
             new CameraDef((Single)Constants.WindowWidth / Constants.WindowHeight, Single.DegreesToRadians(60.0f), 0.1f,
-                100.0f, true)),
+                100.0f)),
         new EntityDef("left_camera",
             new TransformDef(
                 new float3(-6.0f, 6.0f, 10.0f),
@@ -71,7 +70,7 @@ public static class DemoScene
                 new float3(0.2f, 0.2f, 0.2f)),
             new MeshDef("cube"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
             new CameraDef((Single)Constants.WindowWidth / Constants.WindowHeight, Single.DegreesToRadians(60.0f), 0.1f,
-                100.0f, false)),
+                100.0f)),
         new EntityDef("right_camera",
             new TransformDef(
                 new float3(6.0f, 6.0f, 10.0f),
@@ -80,6 +79,6 @@ public static class DemoScene
                 new float3(0.2f, 0.2f, 0.2f)),
             new MeshDef("cube"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
             new CameraDef((Single)Constants.WindowWidth / Constants.WindowHeight, Single.DegreesToRadians(60.0f), 0.1f,
-                100.0f, false)),
+                100.0f)),
     ]);
 }

@@ -65,7 +65,7 @@ public class CameraController
         TransformUtility.MoveLocal(ref transform, float3.NormalizeOrZero(movement) * deltaTime * Speed);
 
         // Camera rotation
-        var mouseDelta = _inputManager.MouseDelta;
+        var mouseDelta = _inputManager.CursorDelta;
 
         _yaw -= (Single)mouseDelta.X * Sensitivity;
         _pitch = Single.Clamp(_pitch - (Single)mouseDelta.Y * Sensitivity, Single.DegreesToRadians(-89.0f), Single.DegreesToRadians(89.0f));

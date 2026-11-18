@@ -24,13 +24,13 @@ public sealed class App : IDisposable
 
     private VulkanContext _context;
     private DescriptorManager _descriptorManager;
-    
+
     private PipelineManager _pipelineManager;
     private TextureManager _textureManager;
     private MeshManager _meshManager;
-    
+
     private Renderer _renderer;
-    
+
     private ImGuiManager _imGuiManager;
 
     private CommandBufferManager _cmdManager;
@@ -56,7 +56,7 @@ public sealed class App : IDisposable
         _window.OnFramebufferSize += OnFramebufferSize;
 
         _inputManager = new InputManager(_window);
-        
+
         InitVulkan();
 
         _world = new World();
@@ -66,8 +66,8 @@ public sealed class App : IDisposable
         _cameraSystem = _systemManager.AddSystem(new CameraSystem(_world));
 
         var resolver = new AssetResolver(_meshManager, _pipelineManager, _textureManager);
-        new SceneLoader(resolver, _cameraSystem).Load(DemoScene.Create(), _world);
-        
+        new SceneLoader(resolver).Load(DemoScene.Create(), _world);
+
         _cameraController = new CameraController(_world, _inputManager, _cameraSystem);
     }
 
@@ -92,24 +92,27 @@ public sealed class App : IDisposable
 
         _cmdManager = new CommandBufferManager(_context.Device, _context.Queue, _context.CommandPool);
 
-        _renderer = new Renderer(_context.Device, _context.PhysicalDevice, _context.Surface, _window, _context.Allocator, _context.CommandPool, _context.Queue);
+        _renderer = new Renderer(_context.Device, _context.PhysicalDevice, _context.Surface, _window,
+            _context.Allocator, _context.CommandPool, _context.Queue);
 
         var pipelineBuildContext = new PipelineBuildContext
         {
             ColorFormat = _renderer.SwapchainFormat.Format,
             MsaaSamples = _renderer.MsaaSamples
         };
-        _imGuiManager = new ImGuiManager(_context.Allocator, _context.Device, _cmdManager, _window, pipelineBuildContext);
-        var pipelineFactory = new PipelineFactory(_context.Device, _pipelineManager, pipelineBuildContext, _descriptorManager);
+        _imGuiManager =
+            new ImGuiManager(_context.Allocator, _context.Device, _cmdManager, _window, pipelineBuildContext);
+        var pipelineFactory =
+            new PipelineFactory(_context.Device, _pipelineManager, pipelineBuildContext, _descriptorManager);
         pipelineFactory.CreateDefaultPipelines();
 
         _meshManager = new MeshManager(_context.Allocator);
         MeshLibrary.RegisterDefaults(_meshManager);
-        
+
         LoadTextures();
         LoadModels();
 
-        _renderer.Initialize(_pipelineManager, _descriptorManager, _imGuiManager, _meshManager);
+        _renderer.Initialize(_pipelineManager, _descriptorManager, _imGuiManager, _meshManager, _inputManager);
     }
 
     public void Run()
@@ -132,9 +135,9 @@ public sealed class App : IDisposable
 
             if (_inputManager.IsKeyPressed(GlfwKey.Escape))
                 _window.ShouldClose = true;
-            
+
             _cameraController.Update(deltaTime);
-            
+
             switch (_inputManager.InputMode)
             {
                 case InputMode.CameraControl when _inputManager.IsKeyPressed(GlfwKey.Tab):
@@ -142,10 +145,27 @@ public sealed class App : IDisposable
                     break;
                 case InputMode.UiInteraction:
                 {
-                    if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Left) &&
-                        !_inputManager.IsImGuiCapturingMouse())
+                    if (_inputManager.IsImGuiCapturingMouse()) break;
+
+                    if (_inputManager.IsKeyPressed(GlfwKey.Tab))
                     {
                         _inputManager.SetInputMode(InputMode.CameraControl);
+                        break;
+                    }
+
+                    var entity = _renderer.Picker.HoveredEntity;
+                    if (!_world.IsEntityAlive(entity)) break;
+
+                    if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Left))
+                    {
+                        if (!_world.TryRemoveComponent<SelectionComponent>(entity))
+                            _world.AddComponent(entity, new SelectionComponent());
+                    }
+
+                    if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Right))
+                    {
+                        _world.DestroyEntity(entity);
+                        _renderer.Picker.Reset();
                     }
 
                     break;
@@ -156,7 +176,8 @@ public sealed class App : IDisposable
 
             CreateUI();
 
-            _renderer.DrawFrame(renderSystem.BuildRenderObjects(), _cameraSystem.GetActiveCameraData(), renderSystem.BuildGpuLights());
+            _renderer.DrawFrame(renderSystem.BuildRenderObjects(), _cameraSystem.GetActiveCameraData(),
+                renderSystem.BuildGpuLights());
         }
     }
 
@@ -166,7 +187,7 @@ public sealed class App : IDisposable
         ImGui.Text("Hello, world!"u8);
         ImGui.End();
     }
-    
+
     private void LoadTextures()
     {
         _textureManager = new TextureManager(_context.PhysicalDevice.GetFeatures().TextureCompressionBC);
@@ -180,11 +201,12 @@ public sealed class App : IDisposable
                      "viking_room.ktx2"
                  })
         {
-            var textureId = _textureManager.AddTexture(fileName, commandBuffer, _context.Allocator, TextureColorSpace.SRgb);
+            var textureId =
+                _textureManager.AddTexture(fileName, commandBuffer, _context.Allocator, TextureColorSpace.SRgb);
             _descriptorManager.UpdateTextureDescriptor(_textureManager.GetTexture(textureId));
         }
 
-        _cmdManager.EndSingleTimeCommands(ref commandBuffer);
+        _cmdManager.EndSingleTimeCommands(commandBuffer);
         _textureManager.ClearStagingBuffers();
     }
 
@@ -201,12 +223,12 @@ public sealed class App : IDisposable
         _renderer.Dispose();
 
         _imGuiManager.Dispose();
-        
+
         _pipelineManager.Dispose();
         _textureManager.Dispose();
         _meshManager.Dispose();
         _inputManager.Dispose();
-        
+
         _descriptorManager.Dispose();
         _context.Dispose();
 

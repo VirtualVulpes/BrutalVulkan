@@ -22,33 +22,20 @@ public class ImGuiPass : IRenderPass
     {
         var colorAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.FrameResources.ColorImageView.VkImageView,
+            ImageView = context.SwapchainImageView,
             ImageLayout = VkImageLayout.ColorAttachmentOptimal,
-            ResolveMode = VkResolveModeFlags.AverageBit,
-            ResolveImageView = context.ResolveImageView,
-            ResolveImageLayout = VkImageLayout.ColorAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Load,
             StoreOp = VkAttachmentStoreOp.Store,
             ClearValue = new VkClearColorValue { Float32 = new float4(0.01f, 0.01f, 0.01f, 1.0f) }
         };
-
-        var depthAttachment = new VkRenderingAttachmentInfo
-        {
-            ImageView = context.FrameResources.DepthImageView.VkImageView,
-            ImageLayout = VkImageLayout.DepthAttachmentOptimal,
-            LoadOp = VkAttachmentLoadOp.Load,
-            StoreOp = VkAttachmentStoreOp.Store,
-            ClearValue = new VkClearDepthStencilValue { Depth = 1.0f, Stencil = 0 }
-        };
-
+        
         context.CommandBuffer.BeginRendering(
             new VkRenderingInfo
             {
                 RenderArea = new VkRect2D(context.Extent),
                 LayerCount = 1,
                 ColorAttachmentCount = 1,
-                ColorAttachments = &colorAttachment,
-                DepthAttachment = &depthAttachment
+                ColorAttachments = &colorAttachment
             }
         );
 

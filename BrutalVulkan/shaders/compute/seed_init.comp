@@ -1,0 +1,49 @@
+#version 460
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout (set = 0, binding = 0, r8) uniform readonly image2D selectionMask;
+layout (set = 0, binding = 1, rg32i) uniform writeonly iimage2D seedImage;
+
+void main() 
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(selectionMask);
+    
+    if (pixel.x >= size.x || pixel.y >= size.y)
+        return;
+        
+    float center = imageLoad(selectionMask, pixel).r;
+    
+    if (center < 0.5) 
+    {
+        imageStore(seedImage, pixel, ivec4(-1, -1, 0, 0));
+        return;
+    }
+    
+    bool boundary = false;
+    
+    for (int y = -1; y <= 1; y++) 
+    {
+        for (int x = -1; x <= 1; x++) 
+        {
+            if(x == 0 && y == 0) continue;
+            
+            ivec2 neighbor = pixel + ivec2(x, y);
+            
+            if (neighbor.x < 0 || neighbor.y < 0 || neighbor.x >= size.x || neighbor.y >= size.y) 
+            {
+                boundary = true;
+                continue;
+            }
+            
+            if (imageLoad(selectionMask, neighbor).r < 0.5)
+                boundary = true;
+        }
+    }
+    
+    if (boundary)
+        imageStore(seedImage, pixel, ivec4(pixel, 0, 0));
+    else 
+        imageStore(seedImage, pixel, ivec4(-1, -1, 0, 0));
+}
