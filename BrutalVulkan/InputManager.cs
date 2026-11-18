@@ -45,6 +45,9 @@ public sealed class InputManager : IDisposable
 
     private void OnCursorPos(GlfwWindow window, double2 pos)
     {
+        var scaledPos = new double2(window.FramebufferSize.X, window.FramebufferSize.Y) / 
+            new double2(window.Size.X, window.Size.Y) * pos;
+        
         if (_resetCursorDelta)
         {
             CursorDelta = double2.Zero;
@@ -52,9 +55,9 @@ public sealed class InputManager : IDisposable
         }
         else
         {
-            CursorDelta += pos - CursorPos;
+            CursorDelta += scaledPos - CursorPos;
         }
-        CursorPos = pos;
+        CursorPos = scaledPos;
     }
 
     private void OnMouseButton(GlfwWindow window, GlfwMouseButton button, GlfwButtonAction action, GlfwModifier mods)
