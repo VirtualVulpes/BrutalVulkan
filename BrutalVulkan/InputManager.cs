@@ -45,8 +45,7 @@ public sealed class InputManager : IDisposable
 
     private void OnCursorPos(GlfwWindow window, double2 pos)
     {
-        var scaledPos = new double2(window.FramebufferSize.X, window.FramebufferSize.Y) / 
-            new double2(window.Size.X, window.Size.Y) * pos;
+        var scaledPos = pos * new double2(window.ContentScale.X, window.ContentScale.Y);
         
         if (_resetCursorDelta)
         {

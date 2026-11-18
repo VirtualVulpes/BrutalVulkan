@@ -83,6 +83,9 @@ public sealed class ImGuiManager : IDisposable
     private void SetStyle()
     {
         ImGui.PushStyleColor(ImGuiCol.TitleBgActive, ImGui.GetStyleColorVec4(ImGuiCol.TitleBg));
+        
+        var style = ImGui.GetStyle();
+        style.FontSizeBase = 16.0f;
     }
 
     private void CreateResources()
@@ -484,17 +487,12 @@ public sealed class ImGuiManager : IDisposable
 
     public void UpdateDisplaySize()
     {
-        var windowSize = _window.Size;
+        if (_window.Size is not { X: > 0, Y: > 0 }) return;
+
         var framebufferSize = _window.FramebufferSize;
 
-        if (windowSize is not { X: > 0, Y: > 0 }) return;
-
         var io = ImGui.GetIO();
-        io.DisplaySize = new float2(windowSize.X, windowSize.Y);
-        io.DisplayFramebufferScale = new float2(
-            (Single)framebufferSize.X / windowSize.X,
-            (Single)framebufferSize.Y / windowSize.Y
-        );
+        io.DisplaySize = new float2(framebufferSize.X, framebufferSize.Y);
     }
 
     private void OnMouseButton(GlfwWindow window, GlfwMouseButton button, GlfwButtonAction action, GlfwModifier mods)
@@ -504,7 +502,8 @@ public sealed class ImGuiManager : IDisposable
 
     private void OnCursorPos(GlfwWindow window, double2 pos)
     {
-        ImGui.GetIO().AddMousePosEvent((Single)pos.X, (Single)pos.Y);
+        var scale = window.ContentScale;
+        ImGui.GetIO().AddMousePosEvent((Single)pos.X * scale.X, (Single)pos.Y * scale.Y);
     }
 
     public void Dispose()
