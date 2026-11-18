@@ -29,6 +29,10 @@ public sealed class TrackedImage : IDisposable
         if (Layout == newLayout && _stage == dstStage && _access == dstAccess && !wasPrevWrite) return;
         
         ImageUtility.TransitionImage(Image.VkImage, Layout, newLayout, _stage, dstStage, _access, dstAccess, aspect, cmd);
+
+        Layout = newLayout;
+        _stage = dstStage;
+        _access = dstAccess;
     }
 
     public void Dispose()
