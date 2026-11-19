@@ -2,7 +2,7 @@ using Brutal.Numerics;
 using BrutalVulkan.ECS;
 using BrutalVulkan.ECS.Components;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.Scenes;
 
 public static class DemoScene
 {

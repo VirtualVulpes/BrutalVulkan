@@ -5,17 +5,17 @@ namespace BrutalVulkan;
 
 public static class CubeSphere
 {
-    private static readonly float3[] Origins =
+    private static readonly double3[] Origins =
     [
-        new(-0.5f, -0.5f, 0.5f), // front
-        new(0.5f, -0.5f, 0.5f), // right
-        new(0.5f, -0.5f, -0.5f), // back
-        new(-0.5f, -0.5f, -0.5f), // left
-        new(-0.5f, 0.5f, 0.5f), // top
-        new(-0.5f, -0.5f, -0.5f) // bottom
+        new(-1.0f, -1.0f, 1.0f), // front
+        new(1.0f, -1.0f, 1.0f), // right
+        new(1.0f, -1.0f, -1.0f), // back
+        new(-1.0f, -1.0f, -1.0f), // left
+        new(-1.0f, 1.0f, 1.0f), // top
+        new(-1.0f, -1.0f, -1.0f) // bottom
     ];
 
-    private static readonly float3[] UDirections =
+    private static readonly double3[] UDirections =
     [
         new(1.0f, 0.0f, 0.0f), // front
         new(0.0f, 0.0f, -1.0f), // right
@@ -25,7 +25,7 @@ public static class CubeSphere
         new(1.0f, 0.0f, 0.0f) // bottom
     ];
 
-    private static readonly float3[] VDirections =
+    private static readonly double3[] VDirections =
     [
         new(0.0f, 1.0f, 0.0f), // front
         new(0.0f, 1.0f, 0.0f), // right
@@ -66,7 +66,7 @@ public static class CubeSphere
 
     public static Mesh CreateMesh(Int32 subdivisionLevel, Single radius = 1.0f)
     {
-        var rawMesh = GenerateRawMesh(subdivisionLevel);
+        var rawMesh = GenerateUnitSphere(subdivisionLevel);
 
         var vertices = rawMesh.Vertices.ToArray();
 
@@ -80,7 +80,7 @@ public static class CubeSphere
 
     public static Mesh CreateNoiseMesh(Int32 subdivisionLevel, Single radius = 1.0f)
     {
-        var rawMesh = GenerateRawMesh(subdivisionLevel);
+        var rawMesh = GenerateUnitSphere(subdivisionLevel);
 
         var vertices = rawMesh.Vertices.ToArray();
 
@@ -96,7 +96,7 @@ public static class CubeSphere
         return new Mesh(vertices, [.. rawMesh.Indices]);
     }
 
-    private static Mesh GenerateRawMesh(Int32 subdivisionLevel)
+    private static Mesh GenerateUnitSphere(Int32 subdivisionLevel)
     {
         var verticesPerSide = (1 << subdivisionLevel) + 1;
         var verticesPerFace = verticesPerSide * verticesPerSide;
@@ -113,20 +113,31 @@ public static class CubeSphere
         {
             for (var v = 0; v < verticesPerSide; v++)
             {
-                var vOffset = (Single)v / (verticesPerSide - 1);
+                var vOffset = (Double)v / (verticesPerSide - 1);
 
                 for (var u = 0; u < verticesPerSide; u++)
                 {
-                    var uOffset = (Single)u / (verticesPerSide - 1);
+                    var uOffset = (Double)u / (verticesPerSide - 1);
 
-                    var direction =
-                        float3.NormalizeOrZero(Origins[f] + uOffset * UDirections[f] + vOffset * VDirections[f]);
+                    var cubePos = Origins[f] + 2 * uOffset * UDirections[f] + 2 * vOffset * VDirections[f];
+
+                    var xSq = cubePos.X * cubePos.X;
+                    var ySq = cubePos.Y * cubePos.Y;
+                    var zSq = cubePos.Z * cubePos.Z;
+
+                    var spherePos = new double3(
+                        cubePos.X * Double.Sqrt(1 - (ySq / 2) - (zSq / 2) + (ySq * zSq / 3)),
+                        cubePos.Y * Double.Sqrt(1 - (zSq / 2) - (xSq / 2) + (zSq * xSq / 3)),
+                        cubePos.Z * Double.Sqrt(1 - (xSq / 2) - (ySq / 2) + (xSq * ySq / 3))
+                    );
+
+                    var floatPos = new float3((Single)spherePos.X, (Single)spherePos.Y, (Single)spherePos.Z);
 
                     vertices[u + v * verticesPerSide + f * verticesPerFace] = new Vertex
                     {
-                        Position = direction,
-                        Normal = direction,
-                        Uv = new float2(uOffset, 1.0f - vOffset)
+                        Position = floatPos,
+                        Normal = floatPos,
+                        Uv = new float2((Single)uOffset, 1.0f - (Single)vOffset)
                     };
                 }
             }

@@ -11,6 +11,7 @@ using BrutalVulkan.ECS.Systems;
 using BrutalVulkan.Rendering;
 using BrutalVulkan.Rendering.Meshes;
 using BrutalVulkan.Rendering.Pipelines;
+using BrutalVulkan.Scenes;
 using BrutalVulkan.UI;
 
 namespace BrutalVulkan;
@@ -66,7 +67,7 @@ public sealed class App : IDisposable
         _cameraSystem = _systemManager.AddSystem(new CameraSystem(_world));
 
         var resolver = new AssetResolver(_meshManager, _pipelineManager, _textureManager);
-        new SceneLoader(resolver).Load(DemoScene.Create(), _world);
+        new SceneLoader(resolver).Load(PlanetScene.Create(), _world);
 
         _cameraController = new CameraController(_world, _inputManager, _cameraSystem);
     }
