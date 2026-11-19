@@ -43,6 +43,11 @@ public sealed class MeshManager : IDisposable
         return _meshes[meshId];
     }
 
+    public Boolean HasMesh(String name)
+    {
+        return _names.ContainsKey(name);
+    }
+
     public GpuMesh GetGpuMesh(MeshId meshId)
     {
         return _gpuMeshes[meshId];

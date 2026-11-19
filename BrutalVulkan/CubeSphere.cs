@@ -1,4 +1,5 @@
 using Brutal.Numerics;
+using BrutalVulkan.ECS.Components;
 using BrutalVulkan.Rendering.Meshes;
 
 namespace BrutalVulkan;
@@ -154,6 +155,70 @@ public static class CubeSphere
                         indices[i + u * 6 + v * 6 * squaresPerSide + f * indicesPerFace] =
                             (UInt32)(baseIndices[i] + u + v * verticesPerSide + f * verticesPerFace);
                     }
+                }
+            }
+        }
+
+        return new Mesh(vertices, indices);
+    }
+
+    public static Mesh CreateChunkMesh(Face face, uint level, uint x, uint y)
+    {
+        var scale = 1.0 / Double.Pow(2, level);
+        
+        var verticesPerSide = 9;
+        var vertices = new Vertex[verticesPerSide * verticesPerSide];
+
+        var squaresPerSide = verticesPerSide - 1;
+
+        var indices = new UInt32[squaresPerSide * squaresPerSide * 6];
+
+        Int32[] baseIndices = [0, 1, verticesPerSide + 1, verticesPerSide + 1, verticesPerSide, 0];
+
+        for (var v = 0; v < verticesPerSide; v++)
+        {
+            var vOffset = (Double)v / (verticesPerSide - 1);
+
+            for (var u = 0; u < verticesPerSide; u++)
+            {
+                var uOffset = (Double)u / (verticesPerSide - 1);
+
+                var cubePos =
+                    Origins[(Int32)face] +
+                    2 * uOffset * UDirections[(Int32)face] * scale +
+                    2 * vOffset * VDirections[(Int32)face] * scale +
+                    2 * x * UDirections[(Int32)face] * scale +
+                    2 * y * VDirections[(Int32)face] * scale;
+
+                var xSq = cubePos.X * cubePos.X;
+                var ySq = cubePos.Y * cubePos.Y;
+                var zSq = cubePos.Z * cubePos.Z;
+
+                var spherePos = new double3(
+                    cubePos.X * Double.Sqrt(1 - (ySq / 2) - (zSq / 2) + (ySq * zSq / 3)),
+                    cubePos.Y * Double.Sqrt(1 - (zSq / 2) - (xSq / 2) + (zSq * xSq / 3)),
+                    cubePos.Z * Double.Sqrt(1 - (xSq / 2) - (ySq / 2) + (xSq * ySq / 3))
+                );
+
+                var floatPos = new float3((Single)cubePos.X, (Single)cubePos.Y, (Single)cubePos.Z);
+
+                vertices[u + v * verticesPerSide] = new Vertex
+                {
+                    Position = floatPos,
+                    Normal = floatPos,
+                    Uv = new float2((Single)uOffset, 1.0f - (Single)vOffset)
+                };
+            }
+        }
+
+        for (var v = 0; v < squaresPerSide; v++)
+        {
+            for (var u = 0; u < squaresPerSide; u++)
+            {
+                for (var i = 0; i < 6; i++)
+                {
+                    indices[i + u * 6 + v * 6 * squaresPerSide] =
+                        (UInt32)(baseIndices[i] + u + v * verticesPerSide);
                 }
             }
         }

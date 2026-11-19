@@ -65,6 +65,7 @@ public sealed class App : IDisposable
         _systemManager.AddSystem(new RenderSystem(_world));
         _systemManager.AddSystem(new RotateSystem(_world));
         _cameraSystem = _systemManager.AddSystem(new CameraSystem(_world));
+        _systemManager.AddSystem(new NodeSystem(_world, _meshManager));
 
         var resolver = new AssetResolver(_meshManager, _pipelineManager, _textureManager);
         new SceneLoader(resolver).Load(PlanetScene.Create(), _world);
@@ -143,6 +144,18 @@ public sealed class App : IDisposable
             {
                 case InputMode.CameraControl when _inputManager.IsKeyPressed(GlfwKey.Tab):
                     _inputManager.SetInputMode(InputMode.UiInteraction);
+                    break;
+                case InputMode.CameraControl:
+                    if (_inputManager.IsKeyPressed(GlfwKey.L))
+                    {
+                        var system = _systemManager.GetSystem<NodeSystem>();
+                        var query = _world.Query<NodeComponent>();
+
+                        foreach (var item in query)
+                        {
+                            system.CreateMesh(item.Entity);
+                        }
+                    }
                     break;
                 case InputMode.UiInteraction:
                 {

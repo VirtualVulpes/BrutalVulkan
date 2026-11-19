@@ -99,3 +99,11 @@ public sealed record SelectionDef() : IComponentDef
         world.AddComponent(entity, new SelectionComponent());
     }
 }
+
+public sealed record NodeDef(Face Face, UInt32 Level, UInt32 X, UInt32 Y) : IComponentDef
+{
+    public void Apply(World world, Entity entity, AssetResolver assets)
+    {
+        world.AddComponent(entity, new NodeComponent { Face = Face, Level = Level, X = X, Y = Y});
+    }
+}
