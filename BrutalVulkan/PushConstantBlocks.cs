@@ -25,14 +25,14 @@ public static class PushConstantBlocks
         public float4x4 Model;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 28)]
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
     public struct FragmentBlock
     {
         [FieldOffset(0)]
-        public UInt32 TextureId;
-        
-        [FieldOffset(16)]
         public float3 CameraPosition;
+        
+        [FieldOffset(12)]
+        public UInt32 TextureId;
     }
     
     [StructLayout(LayoutKind.Explicit, Size = 4)]

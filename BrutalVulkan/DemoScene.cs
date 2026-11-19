@@ -1,5 +1,6 @@
 using Brutal.Numerics;
 using BrutalVulkan.ECS;
+using BrutalVulkan.ECS.Components;
 
 namespace BrutalVulkan;
 
@@ -40,20 +41,30 @@ public static class DemoScene
                 new float3(1.0f, 1.0f, 1.0f)),
             new MeshDef("planet"), new PipelineDef("Wireframe"), new ColorDef(new float3(0.6f, 0.3f, 0.6f)),
             new RotateDef(new float3(0.0f, 0.15f, 0.0f), new float3(0.0f, 0.05f, 0.0f)), new SelectionDef()),
-        new EntityDef("main_light",
+        new EntityDef("directional_light",
             new TransformDef(
                 new float3(-2.0f, 6.5f, -2.0f),
                 floatQuat.Identity,
                 new float3(0.05f, 0.05f, 0.05f)),
             new MeshDef("sphere"), new PipelineDef("Flat Color"), new ColorDef(new float3(1.0f, 0.95f, 0.85f)),
-            new LightDef(new float3(1.0f, 0.95f, 0.85f), 1.0f)),
-        new EntityDef("back_light",
+            new LightDef(new float3(1.0f, 0.95f, 0.85f), 0.4f, 0.0f, new float3(-1.0f, -1.0f, 0.0f),
+                LightType.Directional, 0.0f, 0.0f)),
+        new EntityDef("point_light",
             new TransformDef(
-                new float3(3.0f, 0.5f, 5.0f),
+                new float3(1.0f, -1.0f, -5.5f),
                 floatQuat.Identity,
                 new float3(0.05f, 0.05f, 0.05f)),
             new MeshDef("sphere"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.2f, 0.2f, 0.4f)),
-            new LightDef(new float3(0.2f, 0.2f, 0.4f), 0.4f)),
+            new LightDef(new float3(0.3f, 0.2f, 0.6f), 10.0f, 10.0f, float3.Zero,
+                LightType.Point, 0.0f, 0.0f)),
+        new EntityDef("spot_light",
+            new TransformDef(
+                new float3(0.0f, 0.0f, 0.0f),
+                floatQuat.Identity,
+                new float3(0.05f, 0.05f, 0.05f)),
+            new MeshDef("sphere"), new PipelineDef("Flat Color"), new ColorDef(new float3(1.0f, 0.5f, 0.5f)),
+            new LightDef(new float3(1.0f, 0.5f, 0.5f), 10.0f, 40.0f, new float3(0.2f, -1.0f, 0.4f),
+                LightType.Spot, Single.Cos(Single.DegreesToRadians(40.0f)), Single.Cos(Single.DegreesToRadians(50.0f)))),
         new EntityDef("main_camera",
             new TransformDef(
                 new float3(0.0f, 1.0f, 8.0f),

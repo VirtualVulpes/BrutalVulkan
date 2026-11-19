@@ -62,11 +62,23 @@ public sealed record ColorDef(float3 Color) : IComponentDef
     }
 }
 
-public sealed record LightDef(float3 Color, Single Intensity) : IComponentDef
+public sealed record LightDef(
+    float3 Color,
+    Single Intensity,
+    Single Range,
+    float3 Direction,
+    LightType Type,
+    Single InnerCos,
+    Single OuterCos) : IComponentDef
 {
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
-        world.AddComponent(entity, new LightComponent { Color = Color, Intensity = Intensity });
+        world.AddComponent(entity,
+            new LightComponent
+            {
+                Color = Color, Intensity = Intensity, Range = Range, Direction = Direction, Type = Type,
+                InnerCos = InnerCos, OuterCos = OuterCos
+            });
     }
 }
 

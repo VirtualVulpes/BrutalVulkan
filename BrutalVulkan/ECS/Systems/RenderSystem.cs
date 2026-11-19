@@ -80,7 +80,12 @@ public sealed class RenderSystem : ISystem
             {
                 Position = item.C1.Position,
                 Color = item.C2.Color,
-                Intensity = item.C2.Intensity
+                Intensity = item.C2.Intensity,
+                Range = item.C2.Range,
+                Direction = item.C2.Direction,
+                Type = (Int32)item.C2.Type,
+                InnerCos = item.C2.InnerCos,
+                OuterCos = item.C2.OuterCos
             };
         }
         
