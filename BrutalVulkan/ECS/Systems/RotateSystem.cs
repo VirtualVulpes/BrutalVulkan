@@ -12,6 +12,10 @@ public class RotateSystem : ISystem
     {
         _world = world;
     }
+    
+    public void Start()
+    {
+    }
 
     public void Update(Single deltaTime)
     {

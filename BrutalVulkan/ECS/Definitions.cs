@@ -3,9 +3,13 @@ using BrutalVulkan.ECS.Components;
 
 namespace BrutalVulkan.ECS;
 
-public sealed record EntityDef(String Name, params IComponentDef[] Components);
+public interface ISceneDef;
 
-public sealed record SceneDef(String Name, IReadOnlyList<EntityDef> Entities);
+public sealed record EntityDef(String Name, params IComponentDef[] Components) : ISceneDef;
+
+public sealed record PlanetDef(String Name, IComponentDef[] Components, IComponentDef[] ChildComponents) : ISceneDef;
+
+public sealed record SceneDef(String Name, IReadOnlyList<ISceneDef> Definitions);
 
 public interface IComponentDef
 {
@@ -97,13 +101,5 @@ public sealed record SelectionDef() : IComponentDef
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
         world.AddComponent(entity, new SelectionComponent());
-    }
-}
-
-public sealed record NodeDef(Face Face, UInt32 Level, UInt32 X, UInt32 Y) : IComponentDef
-{
-    public void Apply(World world, Entity entity, AssetResolver assets)
-    {
-        world.AddComponent(entity, new NodeComponent { Face = Face, Level = Level, X = X, Y = Y});
     }
 }

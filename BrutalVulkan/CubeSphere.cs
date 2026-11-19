@@ -162,7 +162,7 @@ public static class CubeSphere
         return new Mesh(vertices, indices);
     }
 
-    public static Mesh CreateChunkMesh(Face face, uint level, uint x, uint y)
+    public static Mesh CreateChunkMesh(Face face, UInt32 level, UInt32 x, UInt32 y)
     {
         var scale = 1.0 / Double.Pow(2, level);
         
@@ -185,10 +185,8 @@ public static class CubeSphere
 
                 var cubePos =
                     Origins[(Int32)face] +
-                    2 * uOffset * UDirections[(Int32)face] * scale +
-                    2 * vOffset * VDirections[(Int32)face] * scale +
-                    2 * x * UDirections[(Int32)face] * scale +
-                    2 * y * VDirections[(Int32)face] * scale;
+                    2 * (x + uOffset) * UDirections[(Int32)face] * scale +
+                    2 * (y + vOffset) * VDirections[(Int32)face] * scale;
 
                 var xSq = cubePos.X * cubePos.X;
                 var ySq = cubePos.Y * cubePos.Y;
@@ -200,7 +198,7 @@ public static class CubeSphere
                     cubePos.Z * Double.Sqrt(1 - (xSq / 2) - (ySq / 2) + (xSq * ySq / 3))
                 );
 
-                var floatPos = new float3((Single)cubePos.X, (Single)cubePos.Y, (Single)cubePos.Z);
+                var floatPos = new float3((Single)spherePos.X, (Single)spherePos.Y, (Single)spherePos.Z);
 
                 vertices[u + v * verticesPerSide] = new Vertex
                 {

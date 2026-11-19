@@ -69,6 +69,10 @@ public class CameraSystem : ISystem
         }
     }
 
+    public void Start()
+    {
+    }
+
     public void Update(Single deltaTime)
     {
     }

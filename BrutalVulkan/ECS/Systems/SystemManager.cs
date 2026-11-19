@@ -15,6 +15,14 @@ public class SystemManager
         return _systems.OfType<T>().First();
     }
 
+    public void Start()
+    {
+        foreach (var system in _systems)
+        {
+            system.Start();
+        }
+    }
+
     public void Update(Single deltaTime)
     {
         foreach (var system in _systems)

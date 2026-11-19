@@ -8,6 +8,7 @@ namespace BrutalVulkan.ECS.Systems;
 public sealed class RenderSystem : ISystem
 {
     private readonly World _world;
+    private readonly TransformSystem _transformSystem;
 
     private RenderObject[] _renderObjects = [];
     private Int32 _renderObjectCount;
@@ -15,9 +16,10 @@ public sealed class RenderSystem : ISystem
     private GpuLight[] _gpuLights = [];
     private Int32 _gpuLightCount;
 
-    public RenderSystem(World world)
+    public RenderSystem(World world, TransformSystem transformSystem)
     {
         _world = world;
+        _transformSystem = transformSystem;
     }
 
     public ReadOnlySpan<RenderObject> BuildRenderObjects()
@@ -36,7 +38,7 @@ public sealed class RenderSystem : ISystem
             
             _renderObjects[_renderObjectCount++] = new RenderObject
             {
-                ModelMatrix = TransformUtility.GetModelMatrix(item.C1),
+                ModelMatrix = _transformSystem.GetWorldMatrix(item.Entity),
                 PipelineId = item.C2.PipelineId,
                 MeshId = item.C3.MeshId,
                 Color = item.C4.Color,
@@ -92,6 +94,10 @@ public sealed class RenderSystem : ISystem
         return _gpuLights.AsSpan(0, _gpuLightCount);
     }
 
+    public void Start()
+    {
+    }
+    
     public void Update(Single deltaTime)
     {
     }

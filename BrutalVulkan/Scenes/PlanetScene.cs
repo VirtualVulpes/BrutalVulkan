@@ -1,6 +1,5 @@
 using Brutal.Numerics;
 using BrutalVulkan.ECS;
-using BrutalVulkan.ECS.Components;
 
 namespace BrutalVulkan.Scenes;
 
@@ -9,23 +8,19 @@ public static class PlanetScene
     public static SceneDef Create() => new SceneDef("Planet Scene", [
         new EntityDef("main_camera",
             new TransformDef(
-                new float3(4.0f, 0.0f, 8.0f),
+                new float3(0.0f, 0.0f, 5.0f),
                 floatQuat.Identity,
                 new float3(0.2f, 0.2f, 0.2f)),
             new MeshDef("cube"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
             new CameraDef((Single)Constants.WindowWidth / Constants.WindowHeight, Single.DegreesToRadians(60.0f), 0.1f,
                 100.0f)),
-        new EntityDef("planet",
+        new PlanetDef("planet",
+        [
             new TransformDef(
                 new float3(0.0f, 0.0f, 0.0f),
-                floatQuat.Identity,
+                floatQuat.CreateFromAxisAngle(float3.UnitZ, Single.DegreesToRadians(23.44f)), // earth's axial tilt
                 new float3(1.0f, 1.0f, 1.0f)),
-            new MeshDef("sphere"), new PipelineDef("Wireframe"), new ColorDef(new float3(0.5f, 0.5f, 0.5f))),
-        new EntityDef("node",
-            new TransformDef(
-                new float3(3.0f, 0.0f, 0.0f),
-                floatQuat.Identity,
-                new float3(1.0f, 1.0f, 1.0f)),
-            new NodeDef(Face.Front, 0, 0, 0), new PipelineDef("Wireframe"), new ColorDef(new float3(0.5f, 0.5f, 0.5f)))
+            new RotateDef(new float3(0.0f, 0.15f, 0.0f), new float3(0.0f, 0.05f, 0.0f))
+        ], [new TransformDef(float3.Zero, floatQuat.Identity, float3.One), new PipelineDef("Wireframe"), new ColorDef(new float3(0.6f, 0.3f, 0.6f))])
     ]);
 }

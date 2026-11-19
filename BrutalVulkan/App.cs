@@ -62,7 +62,8 @@ public sealed class App : IDisposable
 
         _world = new World();
         _systemManager = new SystemManager();
-        _systemManager.AddSystem(new RenderSystem(_world));
+        var transformSystem = _systemManager.AddSystem(new TransformSystem(_world));
+        _systemManager.AddSystem(new RenderSystem(_world, transformSystem));
         _systemManager.AddSystem(new RotateSystem(_world));
         _cameraSystem = _systemManager.AddSystem(new CameraSystem(_world));
         _systemManager.AddSystem(new NodeSystem(_world, _meshManager));
@@ -119,10 +120,13 @@ public sealed class App : IDisposable
 
     public void Run()
     {
+        _systemManager.Start();
+        
         var last = Stopwatch.GetTimestamp();
 
         var renderSystem = _systemManager.GetSystem<RenderSystem>();
-
+        var nodeSystem = _systemManager.GetSystem<NodeSystem>();
+        
         while (!_window.ShouldClose)
         {
             var now = Stopwatch.GetTimestamp();
@@ -144,18 +148,6 @@ public sealed class App : IDisposable
             {
                 case InputMode.CameraControl when _inputManager.IsKeyPressed(GlfwKey.Tab):
                     _inputManager.SetInputMode(InputMode.UiInteraction);
-                    break;
-                case InputMode.CameraControl:
-                    if (_inputManager.IsKeyPressed(GlfwKey.L))
-                    {
-                        var system = _systemManager.GetSystem<NodeSystem>();
-                        var query = _world.Query<NodeComponent>();
-
-                        foreach (var item in query)
-                        {
-                            system.CreateMesh(item.Entity);
-                        }
-                    }
                     break;
                 case InputMode.UiInteraction:
                 {
@@ -180,8 +172,28 @@ public sealed class App : IDisposable
                     {
                         _world.DestroyEntity(entity);
                         _renderer.Picker.Reset();
+                        break;
                     }
 
+                    if (_world.HasComponent<NodeComponent>(entity))
+                    {
+                        if (_inputManager.IsKeyPressed(GlfwKey.L))
+                        {
+                            nodeSystem.IncreaseLod(entity);
+                        }
+                        
+                        if (_inputManager.IsKeyPressed(GlfwKey.K))
+                        {
+                            nodeSystem.DecreaseLod(entity);
+                        }
+                        
+                        if (_inputManager.IsKeyPressed(GlfwKey.J))
+                        {
+                            var node = _world.GetComponent<NodeComponent>(entity);
+                            Console.WriteLine(node);
+                        }
+                    }
+                    
                     break;
                 }
             }

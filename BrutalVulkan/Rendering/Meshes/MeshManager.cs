@@ -32,6 +32,18 @@ public sealed class MeshManager : IDisposable
         
         return meshId;
     }
+    
+    public MeshId AddMesh(Mesh mesh)
+    {
+        var meshId = new MeshId(_nextId++);
+        
+        _meshes.Add(meshId, mesh);
+
+        UploadMesh(meshId);
+        
+        return meshId;
+    }
+
 
     private void UploadMesh(MeshId meshId)
     {
@@ -46,6 +58,11 @@ public sealed class MeshManager : IDisposable
     public Boolean HasMesh(String name)
     {
         return _names.ContainsKey(name);
+    }
+    
+    public Boolean HasMesh(MeshId id)
+    {
+        return _meshes.ContainsKey(id);
     }
 
     public GpuMesh GetGpuMesh(MeshId meshId)
