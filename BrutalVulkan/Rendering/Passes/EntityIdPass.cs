@@ -6,7 +6,7 @@ using BrutalVulkan.Rendering.Pipelines;
 
 namespace BrutalVulkan.Rendering.Passes;
 
-public class EntityIdPass
+public class EntityIdPass : IRenderPass
 {
     private Pipeline _pipeline;
 
@@ -76,7 +76,7 @@ public class EntityIdPass
         {
             var vertPushConsts = new PushConstantBlocks.VertexBlock
             {
-                Mvp = renderObject.ModelMatrix * context.ViewProj,
+                Mvp = renderObject.ModelMatrix * context.Camera.View * context.Camera.Proj,
                 Model = renderObject.ModelMatrix
             };
 

@@ -65,7 +65,7 @@ public class SelectionMaskPass : IRenderPass
 
             var pushConsts = new PushConstantBlocks.VertexBlock
             {
-                Mvp = renderObject.ModelMatrix * context.ViewProj,
+                Mvp = renderObject.ModelMatrix * context.Camera.View * context.Camera.Proj,
                 Model = renderObject.ModelMatrix
             };
 

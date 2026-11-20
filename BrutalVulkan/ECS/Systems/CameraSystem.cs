@@ -1,10 +1,11 @@
+using System.ComponentModel.Design;
 using Brutal.Numerics;
+using Brutal.VulkanApi;
 using BrutalVulkan.ECS.Components;
+using BrutalVulkan.Rendering.GpuTypes;
 using BrutalVulkan.Utility;
 
 namespace BrutalVulkan.ECS.Systems;
-
-public readonly record struct CameraData(float3 Position, float4x4 View, float4x4 Projection);
 
 public class CameraSystem : ISystem
 {
@@ -44,7 +45,7 @@ public class CameraSystem : ISystem
         _active = pool.GetEntityAt((index + direction + pool.Count) % pool.Count);
     }
 
-    public CameraData GetActiveCameraData()
+    public GpuCamera GetActiveCameraData(VkExtent2D viewport)
     {
         Resolve();
         if (_active == Entity.Invalid)
@@ -53,11 +54,23 @@ public class CameraSystem : ISystem
         var transform = _world.GetComponent<TransformComponent>(ActiveCamera);
         var camera = _world.GetComponent<CameraComponent>(ActiveCamera);
 
-        return new CameraData(
-            transform.Position,
-            float4x4.CreateLookAt(transform.Position, transform.Position + TransformUtility.Forward(transform),
-                float3.UnitY),
-            float4x4.CreatePerspectiveFieldOfView(camera.Fov, camera.AspectRatio, camera.ZNear, camera.ZFar));
+        var view = float4x4.CreateLookAt(transform.Position, transform.Position + TransformUtility.Forward(transform),
+            float3.UnitY);
+        var proj = float4x4.CreatePerspectiveFieldOfView(camera.Fov, camera.AspectRatio, camera.ZNear, camera.ZFar);
+        float4x4.Invert(view, out var invView);
+        float4x4.Invert(proj, out var invProj);
+
+        var invViewport = new float2(1.0f / viewport.Width, 1.0f / viewport.Height);
+        
+        return new GpuCamera
+        {
+            View = view,
+            Proj = proj,
+            InvView = invView,
+            InvProj = invProj,
+            Position = transform.Position,
+            InvViewport = invViewport
+        };
     }
 
     public void SetAspectRatio(Single aspectRatio)

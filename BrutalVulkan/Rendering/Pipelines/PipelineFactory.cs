@@ -47,6 +47,7 @@ public class PipelineFactory
         CreateSeedInitPipeline();
         CreateJumpFloodPipeline();
         CreateEntityIdPipeline();
+        CreateAtmospherePipeline();
     }
 
     private unsafe void CreateFlatTexturePipeline()
@@ -340,8 +341,8 @@ public class PipelineFactory
 
         _pipelineManager.AddGraphicsPipeline("Phong Color", pipelineDescription);
     }
-    
-        private unsafe void CreatePhongTexturePipeline()
+
+    private unsafe void CreatePhongTexturePipeline()
     {
         var shaders = new ShaderCreateInfo[]
         {
@@ -542,7 +543,7 @@ public class PipelineFactory
 
         _pipelineManager.AddGraphicsPipeline("Outline Composite", pipelineDescription);
     }
-    
+
     private void CreateSeedInitPipeline()
     {
         var shader = new ShaderCreateInfo { Name = "seed_init.comp", Kind = ShaderKind.ComputeShader };
@@ -559,7 +560,7 @@ public class PipelineFactory
 
         _device.DestroyShaderModule(shaderStage.Module, null);
     }
-    
+
     private void CreateJumpFloodPipeline()
     {
         var shader = new ShaderCreateInfo { Name = "jump_flood.comp", Kind = ShaderKind.ComputeShader };
@@ -574,7 +575,7 @@ public class PipelineFactory
                 StageFlags = VkShaderStageFlags.ComputeBit
             }
         ];
-        
+
         var pipelineDescription = new ComputePipelineDescription
         {
             ShaderStage = shaderStage,
@@ -586,8 +587,8 @@ public class PipelineFactory
 
         _device.DestroyShaderModule(shaderStage.Module, null);
     }
-    
-        private unsafe void CreateEntityIdPipeline()
+
+    private unsafe void CreateEntityIdPipeline()
     {
         var shaders = new ShaderCreateInfo[]
         {
@@ -658,5 +659,71 @@ public class PipelineFactory
         };
 
         _pipelineManager.AddGraphicsPipeline("Entity Id", pipelineDescription);
+    }
+
+    private unsafe void CreateAtmospherePipeline()
+    {
+        var shaders = new ShaderCreateInfo[]
+        {
+            new() { Name = "fullscreen.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "atmosphere.frag", Kind = ShaderKind.FragmentShader },
+        };
+        using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
+
+        var vertexInput = new VertexInput(0, 0);
+
+        var format = _context.ColorFormat;
+
+        var rendering = new VkPipelineRenderingCreateInfo
+        {
+            ColorAttachmentCount = 1,
+            ColorAttachmentFormats = &format,
+        };
+
+        ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
+        [
+            new()
+            {
+                Offset = ByteSize.Zero,
+                Size = ByteSize.Of<PushConstantBlocks.AtmosphereBlock>(),
+                StageFlags = VkShaderStageFlags.FragmentBit
+            }
+        ];
+
+        var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+        {
+            DepthTestEnable = false,
+            DepthWriteEnable = false,
+            DepthCompareOp = VkCompareOp.Less,
+            DepthBoundsTestEnable = false,
+            StencilTestEnable = false
+        };
+
+        var multisampleState = new VkPipelineMultisampleStateCreateInfo
+        {
+            RasterizationSamples = VkSampleCountFlags._1Bit
+        };
+
+        var rasterizationState = new VkPipelineRasterizationStateCreateInfo
+        {
+            PolygonMode = VkPolygonMode.Fill,
+            CullMode = VkCullModeFlags.None,
+            LineWidth = 1.0f
+        };
+
+        var pipelineDescription = new GraphicsPipelineDescription
+        {
+            RenderingCreateInfo = rendering,
+            ShaderStages = shaderStages,
+            VertexInput = vertexInput,
+            RasterizationStateCreateInfo = rasterizationState,
+            MultisampleStateCreateInfo = multisampleState,
+            DepthStencilStateCreateInfo = depthStencil,
+            DescriptorSetLayouts = [_descriptorManager.GlobalLayout, _descriptorManager.AtmosphereLayout],
+            PushConstantRanges = [.. pushConstantRanges],
+            ColorBlendStateCreateInfo = Presets.BlendState.BlendColorAlpha.Value
+        };
+
+        _pipelineManager.AddGraphicsPipeline("Atmosphere", pipelineDescription);
     }
 }

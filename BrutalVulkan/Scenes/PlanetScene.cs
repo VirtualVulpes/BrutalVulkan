@@ -31,5 +31,11 @@ public static class PlanetScene
             new MeshDef("sphere"), new PipelineDef("Flat Color"), new ColorDef(new float3(1.0f, 0.95f, 0.85f)),
             new LightDef(new float3(1.0f, 0.95f, 0.85f), 0.4f, 0.0f, new float3(-1.0f, -1.0f, 0.0f),
                 LightType.Directional, 0.0f, 0.0f)),
+        new EntityDef("atmosphere",
+            new TransformDef(
+                new float3(0.0f, 0.0f, 0.0f),
+                floatQuat.Identity,
+                new float3(0.05f, 0.05f, 0.05f)),
+            new PipelineDef("Atmosphere"))
     ]);
 }

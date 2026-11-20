@@ -82,7 +82,7 @@ public sealed class OpaquePass : IRenderPass
 
             var pushConsts = new PushConstantBlocks.VertexBlock
             {
-                Mvp = renderObject.ModelMatrix * context.ViewProj,
+                Mvp = renderObject.ModelMatrix * context.Camera.View * context.Camera.Proj,
                 Model = renderObject.ModelMatrix
             };
 
@@ -94,7 +94,7 @@ public sealed class OpaquePass : IRenderPass
                 case RenderDataType.Color:
                     var colorFrag = new PushConstantBlocks.ColorFragmentBlock
                     {
-                        CameraPosition = context.CameraPosition,
+                        CameraPosition = context.Camera.Position,
                         Color = renderObject.Color
                     };
                     context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,
@@ -104,7 +104,7 @@ public sealed class OpaquePass : IRenderPass
                     var textureFrag = new PushConstantBlocks.TextureFragmentBlock
                     {
                         TextureId = renderObject.TextureId.Value,
-                        CameraPosition = context.CameraPosition
+                        CameraPosition = context.Camera.Position
                     };
 
                     context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,

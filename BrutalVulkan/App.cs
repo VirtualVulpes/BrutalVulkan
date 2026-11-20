@@ -178,20 +178,9 @@ public sealed class App : IDisposable
                     if (_world.HasComponent<NodeComponent>(entity))
                     {
                         if (_inputManager.IsKeyPressed(GlfwKey.L))
-                        {
                             nodeSystem.IncreaseLod(entity);
-                        }
-                        
                         if (_inputManager.IsKeyPressed(GlfwKey.K))
-                        {
                             nodeSystem.DecreaseLod(entity);
-                        }
-                        
-                        if (_inputManager.IsKeyPressed(GlfwKey.J))
-                        {
-                            var node = _world.GetComponent<NodeComponent>(entity);
-                            Console.WriteLine(node);
-                        }
                     }
                     
                     break;
@@ -202,7 +191,7 @@ public sealed class App : IDisposable
 
             CreateUI();
 
-            _renderer.DrawFrame(renderSystem.BuildRenderObjects(), _cameraSystem.GetActiveCameraData(),
+            _renderer.DrawFrame(renderSystem.BuildRenderObjects(), _cameraSystem.GetActiveCameraData(_renderer.Extent),
                 renderSystem.BuildGpuLights());
         }
     }

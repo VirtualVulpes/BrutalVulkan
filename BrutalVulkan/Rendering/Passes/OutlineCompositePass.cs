@@ -16,7 +16,7 @@ public class OutlineCompositePass : IRenderPass
 
     public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
     {
-        context.FrameResources.ResolveColorImage.TransitionTo(context.CommandBuffer,
+        context.FrameResources.PostProcessImage.TransitionTo(context.CommandBuffer,
             VkImageLayout.ShaderReadOnlyOptimal, VkPipelineStageFlags.FragmentShaderBit, VkAccessFlags.ShaderReadBit);
 
         context.FrameResources.SeedAImage.TransitionTo(context.CommandBuffer,

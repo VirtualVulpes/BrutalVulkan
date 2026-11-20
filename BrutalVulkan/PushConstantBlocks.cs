@@ -58,4 +58,17 @@ public static class PushConstantBlocks
         [FieldOffset(0)]
         public UInt32 Id;
     }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    public struct AtmosphereBlock
+    {
+        [FieldOffset(0)]
+        public float3 Center;
+
+        [FieldOffset(12)] 
+        public Single Radius;
+        
+        [FieldOffset(16)] 
+        public float3 LightPosition;
+    }
 }

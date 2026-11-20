@@ -18,11 +18,11 @@ public struct FrameResources
     public TrackedImage ResolveColorImage;
     public ImageViewEx ResolveColorImageView;
     
+    public TrackedImage PostProcessImage;
+    public ImageViewEx PostProcessImageView;
+    
     public TrackedImage SelectionMaskImage;
     public ImageViewEx SelectionMaskImageView;
-    
-    public TrackedImage ComputeImage;
-    public ImageViewEx ComputeImageView;
     
     public TrackedImage SeedAImage;
     public ImageViewEx SeedAImageView;
@@ -36,9 +36,9 @@ public struct FrameResources
     public TrackedImage EntityIdDepthImage;
     public ImageViewEx EntityIdDepthImageView;
     
-    public VkDescriptorSet ComputeDescriptorSet;
     public VkDescriptorSet OutlineCompositeDescriptorSet;
     public VkDescriptorSet SeedDescriptorSet;
     public VkDescriptorSet SeedAToBDescriptorSet;
     public VkDescriptorSet SeedBToADescriptorSet;
+    public VkDescriptorSet AtmosphereDescriptorSet;
 }

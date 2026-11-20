@@ -13,8 +13,5 @@ public static class MeshLibrary
         manager.AddMesh("planet", CubeSphere.CreateNoiseMesh(3, 2.0f));
         
         manager.AddMesh("sphere", CubeSphere.CreateMesh(3));
-        manager.AddMesh("face", CubeSphere.CreateChunkMesh(Face.Front, 0, 0, 0));
-        manager.AddMesh("sub_face_0_0", CubeSphere.CreateChunkMesh(Face.Front, 1, 0, 0));
-        manager.AddMesh("sub_face_1_0", CubeSphere.CreateChunkMesh(Face.Front, 2, 2, 0));
     }
 }
