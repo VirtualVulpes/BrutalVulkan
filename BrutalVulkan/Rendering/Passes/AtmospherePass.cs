@@ -20,6 +20,9 @@ public class AtmospherePass : IRenderPass
         context.FrameResources.ResolveColorImage.TransitionTo(context.CommandBuffer,
             VkImageLayout.ShaderReadOnlyOptimal, VkPipelineStageFlags.FragmentShaderBit, VkAccessFlags.ShaderReadBit);
         
+        context.FrameResources.EntityIdDepthImage.TransitionTo(context.CommandBuffer,
+            VkImageLayout.ShaderReadOnlyOptimal, VkPipelineStageFlags.FragmentShaderBit, VkAccessFlags.ShaderReadBit, VkImageAspectFlags.DepthBit);
+
         context.FrameResources.PostProcessImage.TransitionTo(context.CommandBuffer,
             VkImageLayout.ColorAttachmentOptimal, VkPipelineStageFlags.ColorAttachmentOutputBit, VkAccessFlags.ColorAttachmentWriteBit);
         
@@ -31,7 +34,7 @@ public class AtmospherePass : IRenderPass
             StoreOp = VkAttachmentStoreOp.Store,
             ClearValue = new VkClearColorValue { Float32 = new float4(0.01f, 0.01f, 0.01f, 1.0f) }
         };
-
+        
         context.CommandBuffer.BeginRendering(
             new VkRenderingInfo
             {
@@ -65,7 +68,7 @@ public class AtmospherePass : IRenderPass
         {
             Center = new float3(0.0f, 0.0f, 0.0f),
             Radius = 1.05f,
-            LightPosition = new float3(-10.0f, 10.0f, 0.0f),
+            LightPosition = new float3(100.0f, 100.0f, 0.0f),
         };
         
         context.CommandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit, ByteSize.Zero, pushConsts);

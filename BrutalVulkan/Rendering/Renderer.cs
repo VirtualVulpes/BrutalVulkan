@@ -573,7 +573,7 @@ public sealed class Renderer : IDisposable
             ImageArrayLayers = 1,
             ImageSamples = VkSampleCountFlags._1Bit,
             ImageTiling = VkImageTiling.Optimal,
-            ImageUsage = VkImageUsageFlags.DepthStencilAttachmentBit,
+            ImageUsage = VkImageUsageFlags.DepthStencilAttachmentBit | VkImageUsageFlags.SampledBit,
             ImageSharingMode = VkSharingMode.Exclusive,
             AllocRequiredProperties = VkMemoryPropertyFlags.DeviceLocalBit,
         };
@@ -768,7 +768,7 @@ public sealed class Renderer : IDisposable
                 resources.AtmosphereDescriptorSet = _descriptorManager.AllocateAtmosphereDescriptor();
 
             _descriptorManager.UpdateAtmosphereDescriptor(resources.AtmosphereDescriptorSet,
-                resources.ResolveColorImageView.VkImageView);
+                resources.ResolveColorImageView.VkImageView, resources.EntityIdDepthImageView.VkImageView);
         }
     }
 

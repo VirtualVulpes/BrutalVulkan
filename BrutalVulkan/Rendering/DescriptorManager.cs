@@ -193,6 +193,13 @@ public sealed class DescriptorManager : IDisposable
                 DescriptorType = VkDescriptorType.CombinedImageSampler,
                 DescriptorCount = 1,
                 StageFlags = VkShaderStageFlags.FragmentBit
+            },            
+            new()
+            {
+                Binding = 1,
+                DescriptorType = VkDescriptorType.CombinedImageSampler,
+                DescriptorCount = 1,
+                StageFlags = VkShaderStageFlags.FragmentBit
             }
         ];
 
@@ -302,12 +309,19 @@ public sealed class DescriptorManager : IDisposable
         _context.Device.UpdateDescriptorSets(writes, null);
     }
     
-    public unsafe void UpdateAtmosphereDescriptor(VkDescriptorSet descriptorSet, VkImageView colorImageView)
+    public unsafe void UpdateAtmosphereDescriptor(VkDescriptorSet descriptorSet, VkImageView colorImageView, VkImageView depthImageView)
     {
         var colorInfo = new VkDescriptorImageInfo
         {
             Sampler = TextureSampler,
             ImageView = colorImageView,
+            ImageLayout = VkImageLayout.ShaderReadOnlyOptimal
+        };
+        
+        var depthInfo = new VkDescriptorImageInfo
+        {
+            Sampler = TextureSampler,
+            ImageView = depthImageView,
             ImageLayout = VkImageLayout.ShaderReadOnlyOptimal
         };
         
@@ -320,6 +334,14 @@ public sealed class DescriptorManager : IDisposable
                 DescriptorCount = 1,
                 DescriptorType = VkDescriptorType.CombinedImageSampler,
                 ImageInfo = &colorInfo
+            },
+            new()
+            {
+                DstSet = descriptorSet,
+                DstBinding = 1,
+                DescriptorCount = 1,
+                DescriptorType = VkDescriptorType.CombinedImageSampler,
+                ImageInfo = &depthInfo
             }
         ];
         _context.Device.UpdateDescriptorSets(writes, null);

@@ -677,7 +677,7 @@ public class PipelineFactory
         var rendering = new VkPipelineRenderingCreateInfo
         {
             ColorAttachmentCount = 1,
-            ColorAttachmentFormats = &format,
+            ColorAttachmentFormats = &format
         };
 
         ReadOnlySpan<VkPushConstantRange> pushConstantRanges =

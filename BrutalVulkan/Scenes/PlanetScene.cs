@@ -9,7 +9,7 @@ public static class PlanetScene
     public static SceneDef Create() => new SceneDef("Planet Scene", [
         new EntityDef("main_camera",
             new TransformDef(
-                new float3(0.0f, 0.0f, 5.0f),
+                new float3(3.0f, 0.0f, 5.0f),
                 floatQuat.Identity,
                 new float3(0.2f, 0.2f, 0.2f)),
             new MeshDef("cube"), new PipelineDef("Flat Color"), new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
