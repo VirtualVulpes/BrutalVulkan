@@ -92,18 +92,23 @@ public sealed class OpaquePass : IRenderPass
             switch (renderObject.DataType)
             {
                 case RenderDataType.Color:
+                    var colorFrag = new PushConstantBlocks.ColorFragmentBlock
+                    {
+                        CameraPosition = context.CameraPosition,
+                        Color = renderObject.Color
+                    };
                     context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,
-                        ByteSize.Of<PushConstantBlocks.VertexBlock>(), renderObject.Color);
+                        ByteSize.Of<PushConstantBlocks.VertexBlock>(), colorFrag);
                     break;
                 case RenderDataType.Texture:
-                    var fragment = new PushConstantBlocks.FragmentBlock
+                    var textureFrag = new PushConstantBlocks.TextureFragmentBlock
                     {
                         TextureId = renderObject.TextureId.Value,
                         CameraPosition = context.CameraPosition
                     };
 
                     context.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,
-                        ByteSize.Of<PushConstantBlocks.VertexBlock>(), fragment);
+                        ByteSize.Of<PushConstantBlocks.VertexBlock>(), textureFrag);
                     break;
             }
 

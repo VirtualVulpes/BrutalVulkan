@@ -1,6 +1,4 @@
-using System.Collections.Immutable;
 using Brutal;
-using Brutal.Numerics;
 using Brutal.ShaderCApi;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
@@ -39,10 +37,11 @@ public class PipelineFactory
 
     public void CreateDefaultPipelines()
     {
-        CreateOpaquePipeline();
+        CreateFlatTexturePipeline();
         CreateWireframePipeline();
         CreateFlatColorPipeline();
         CreatePhongTexturePipeline();
+        CreatePhongColorPipeline();
         CreateSelectionMaskPipeline();
         CreateOutlineCompositePipeline();
         CreateSeedInitPipeline();
@@ -50,12 +49,12 @@ public class PipelineFactory
         CreateEntityIdPipeline();
     }
 
-    private unsafe void CreateOpaquePipeline()
+    private unsafe void CreateFlatTexturePipeline()
     {
         var shaders = new ShaderCreateInfo[]
         {
-            new() { Name = "mesh.vert", Kind = ShaderKind.VertexShader },
-            new() { Name = "mesh.frag", Kind = ShaderKind.FragmentShader },
+            new() { Name = "world_space.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "flat_texture.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
 
@@ -81,7 +80,7 @@ public class PipelineFactory
             new()
             {
                 Offset = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
-                Size = ByteSize.Of<PushConstantBlocks.FragmentBlock>(),
+                Size = ByteSize.Of<PushConstantBlocks.TextureFragmentBlock>(),
                 StageFlags = VkShaderStageFlags.FragmentBit
             }
         ];
@@ -120,7 +119,7 @@ public class PipelineFactory
             ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
         };
 
-        _pipelineManager.AddGraphicsPipeline("Opaque", pipelineDescription);
+        _pipelineManager.AddGraphicsPipeline("Flat Texture", pipelineDescription);
     }
 
     private unsafe void CreateWireframePipeline()
@@ -154,7 +153,7 @@ public class PipelineFactory
             new()
             {
                 Offset = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
-                Size = ByteSize.Of<float4>(),
+                Size = ByteSize.Of<PushConstantBlocks.ColorFragmentBlock>(),
                 StageFlags = VkShaderStageFlags.FragmentBit
             }
         ];
@@ -227,7 +226,7 @@ public class PipelineFactory
             new()
             {
                 Offset = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
-                Size = ByteSize.Of<float4>(),
+                Size = ByteSize.Of<PushConstantBlocks.ColorFragmentBlock>(),
                 StageFlags = VkShaderStageFlags.FragmentBit
             },
         ];
@@ -269,11 +268,84 @@ public class PipelineFactory
         _pipelineManager.AddGraphicsPipeline("Flat Color", pipelineDescription);
     }
 
-    private unsafe void CreatePhongTexturePipeline()
+    private unsafe void CreatePhongColorPipeline()
     {
         var shaders = new ShaderCreateInfo[]
         {
-            new() { Name = "phong_texture.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "world_space.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "phong_color.frag", Kind = ShaderKind.FragmentShader },
+        };
+        using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
+
+        var vertexInput = new VertexInput(1, 3).AddBindingWithAttributes<Vertex>(0, 0, VkVertexInputRate.Vertex);
+
+        var format = _context.ColorFormat;
+
+        var rendering = new VkPipelineRenderingCreateInfo
+        {
+            ColorAttachmentCount = 1,
+            ColorAttachmentFormats = &format,
+            DepthAttachmentFormat = VkFormat.D32SFloat
+        };
+
+        ReadOnlySpan<VkPushConstantRange> pushConstantRanges =
+        [
+            new()
+            {
+                Offset = ByteSize.Zero,
+                Size = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
+                StageFlags = VkShaderStageFlags.VertexBit
+            },
+            new()
+            {
+                Offset = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
+                Size = ByteSize.Of<PushConstantBlocks.ColorFragmentBlock>(),
+                StageFlags = VkShaderStageFlags.FragmentBit
+            }
+        ];
+
+        var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+        {
+            DepthTestEnable = true,
+            DepthWriteEnable = true,
+            DepthCompareOp = VkCompareOp.Less,
+            DepthBoundsTestEnable = false,
+            StencilTestEnable = false
+        };
+
+        var multisampleState = new VkPipelineMultisampleStateCreateInfo
+        {
+            RasterizationSamples = _context.MsaaSamples
+        };
+
+        var rasterizationState = new VkPipelineRasterizationStateCreateInfo
+        {
+            PolygonMode = VkPolygonMode.Fill,
+            CullMode = VkCullModeFlags.BackBit,
+            LineWidth = 1.0f
+        };
+
+        var pipelineDescription = new GraphicsPipelineDescription
+        {
+            RenderingCreateInfo = rendering,
+            ShaderStages = shaderStages,
+            VertexInput = vertexInput,
+            RasterizationStateCreateInfo = rasterizationState,
+            MultisampleStateCreateInfo = multisampleState,
+            DepthStencilStateCreateInfo = depthStencil,
+            DescriptorSetLayouts = [_descriptorManager.GlobalLayout],
+            PushConstantRanges = [.. pushConstantRanges],
+            ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
+        };
+
+        _pipelineManager.AddGraphicsPipeline("Phong Color", pipelineDescription);
+    }
+    
+        private unsafe void CreatePhongTexturePipeline()
+    {
+        var shaders = new ShaderCreateInfo[]
+        {
+            new() { Name = "world_space.vert", Kind = ShaderKind.VertexShader },
             new() { Name = "phong_texture.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
@@ -300,7 +372,7 @@ public class PipelineFactory
             new()
             {
                 Offset = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
-                Size = ByteSize.Of<PushConstantBlocks.FragmentBlock>(),
+                Size = ByteSize.Of<PushConstantBlocks.TextureFragmentBlock>(),
                 StageFlags = VkShaderStageFlags.FragmentBit
             }
         ];
@@ -346,7 +418,7 @@ public class PipelineFactory
     {
         var shaders = new ShaderCreateInfo[]
         {
-            new() { Name = "mesh.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "world_space.vert", Kind = ShaderKind.VertexShader },
             new() { Name = "selection_mask.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);
@@ -373,7 +445,7 @@ public class PipelineFactory
             new()
             {
                 Offset = ByteSize.Of<PushConstantBlocks.VertexBlock>(),
-                Size = ByteSize.Of<PushConstantBlocks.FragmentBlock>(),
+                Size = ByteSize.Of<PushConstantBlocks.TextureFragmentBlock>(),
                 StageFlags = VkShaderStageFlags.FragmentBit
             }
         ];
@@ -519,7 +591,7 @@ public class PipelineFactory
     {
         var shaders = new ShaderCreateInfo[]
         {
-            new() { Name = "mesh.vert", Kind = ShaderKind.VertexShader },
+            new() { Name = "world_space.vert", Kind = ShaderKind.VertexShader },
             new() { Name = "entity_id.frag", Kind = ShaderKind.FragmentShader },
         };
         using var shaderStages = ShaderCreation.CreateShaderStages(shaders, _device);

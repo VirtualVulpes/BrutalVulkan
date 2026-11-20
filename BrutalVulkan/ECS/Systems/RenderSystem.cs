@@ -54,7 +54,7 @@ public sealed class RenderSystem : ISystem
 
             _renderObjects[_renderObjectCount++] = new RenderObject
             {
-                ModelMatrix = TransformUtility.GetModelMatrix(item.C1),
+                ModelMatrix = _transformSystem.GetWorldMatrix(item.Entity),
                 PipelineId = item.C2.PipelineId,
                 MeshId = item.C3.MeshId,
                 TextureId = item.C4.TextureId,
