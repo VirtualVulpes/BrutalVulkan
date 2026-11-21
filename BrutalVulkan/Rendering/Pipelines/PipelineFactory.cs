@@ -188,7 +188,7 @@ public class PipelineFactory
             RasterizationStateCreateInfo = rasterizationState,
             MultisampleStateCreateInfo = multisampleState,
             DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorManager.GlobalLayout],
+            DescriptorSetLayouts = [_descriptorManager.GlobalLayout, _descriptorManager.PerFrameLayout],
             PushConstantRanges = [.. pushConstantRanges],
             ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
         };
