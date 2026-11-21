@@ -376,7 +376,7 @@ public sealed class DescriptorManager : IDisposable
         return _context.Device.AllocateDescriptorSet(DescriptorPool, OutlineCompositeLayout);
     }
 
-    public VkDescriptorSet AllocateSeedDescriptorSet()
+    public VkDescriptorSet AllocateSeedInitDescriptorSet()
     {
         return _context.Device.AllocateDescriptorSet(DescriptorPool, SeedLayout);
     }

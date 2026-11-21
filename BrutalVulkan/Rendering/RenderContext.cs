@@ -8,10 +8,10 @@ public readonly struct RenderContext
 {
     public FrameResources FrameResources { get; init; }
     
+    public RenderTargets Targets { get; init; }
+    
     public VkImageView SwapchainImageView { get; init; }
-
-    public VkExtent2D Extent { get; init; }
-
+    
     public GpuCamera Camera { get; init; }
     
     public VkDescriptorSet GlobalDescriptorSet { get; init; }

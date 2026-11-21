@@ -3,9 +3,7 @@ using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
-using BrutalVulkan.Rendering.Pipelines;
 using BrutalVulkan.UI;
-using BrutalVulkan.Utility;
 
 namespace BrutalVulkan.Rendering.Passes;
 
@@ -32,7 +30,7 @@ public class ImGuiPass : IRenderPass
         context.CommandBuffer.BeginRendering(
             new VkRenderingInfo
             {
-                RenderArea = new VkRect2D(context.Extent),
+                RenderArea = new VkRect2D(context.Targets.Extent),
                 LayerCount = 1,
                 ColorAttachmentCount = 1,
                 ColorAttachments = &colorAttachment

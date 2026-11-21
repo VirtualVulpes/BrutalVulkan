@@ -17,17 +17,17 @@ public class EntityIdPass : IRenderPass
 
     public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
     {
-        context.FrameResources.EntityIdImage.TransitionTo(context.CommandBuffer,
+        context.Targets.EntityId.Image.TransitionTo(context.CommandBuffer,
             VkImageLayout.ColorAttachmentOptimal, VkPipelineStageFlags.ColorAttachmentOutputBit,
             VkAccessFlags.ColorAttachmentWriteBit);
 
-        context.FrameResources.EntityIdDepthImage.TransitionTo(context.CommandBuffer,
+        context.Targets.EntityIdDepth.Image.TransitionTo(context.CommandBuffer,
             VkImageLayout.DepthAttachmentOptimal, VkPipelineStageFlags.EarlyFragmentTestsBit,
             VkAccessFlags.DepthStencilAttachmentWriteBit, VkImageAspectFlags.DepthBit);
         
         var colorAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.FrameResources.EntityIdImageView.VkImageView,
+            ImageView = context.Targets.EntityId.View.VkImageView,
             ImageLayout = VkImageLayout.ColorAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Clear,
             StoreOp = VkAttachmentStoreOp.Store,
@@ -36,7 +36,7 @@ public class EntityIdPass : IRenderPass
 
         var depthAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.FrameResources.EntityIdDepthImageView.VkImageView,
+            ImageView = context.Targets.EntityIdDepth.View.VkImageView,
             ImageLayout = VkImageLayout.DepthAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Clear,
             StoreOp = VkAttachmentStoreOp.Store,
@@ -46,7 +46,7 @@ public class EntityIdPass : IRenderPass
         context.CommandBuffer.BeginRendering(
             new VkRenderingInfo
             {
-                RenderArea = new VkRect2D(context.Extent),
+                RenderArea = new VkRect2D(context.Targets.Extent),
                 LayerCount = 1,
                 ColorAttachmentCount = 1,
                 ColorAttachments = &colorAttachment,
@@ -58,14 +58,14 @@ public class EntityIdPass : IRenderPass
             new VkViewport
             {
                 X = 0.0f,
-                Y = context.Extent.Height,
-                Width = context.Extent.Width,
-                Height = -context.Extent.Height,
+                Y = context.Targets.Extent.Height,
+                Width = context.Targets.Extent.Width,
+                Height = -context.Targets.Extent.Height,
                 MinDepth = 0.0f,
                 MaxDepth = 1.0f
             }
         ]);
-        context.CommandBuffer.SetScissor(0, [new VkRect2D(context.Extent)]);
+        context.CommandBuffer.SetScissor(0, [new VkRect2D(context.Targets.Extent)]);
 
         context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
 

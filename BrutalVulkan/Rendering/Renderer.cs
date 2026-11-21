@@ -31,6 +31,7 @@ public sealed class Renderer : IDisposable
     private PipelineManager _pipelineManager;
 
     private readonly FrameResources[] _frameResources = new FrameResources[Constants.MaxFramesInFlight];
+    private RenderTargets _targets;
 
     public Swapchain Swapchain { get; }
 
@@ -54,18 +55,22 @@ public sealed class Renderer : IDisposable
 
         for (var i = 0; i < Constants.MaxFramesInFlight; i++)
         {
-            _frameResources[i].ImageAvailable = _context.Device.CreateSemaphore(new VkSemaphoreCreateInfo(), null);
-            _frameResources[i].Fence = _context.Device.CreateFence(VkFenceCreateFlags.SignaledBit, null);
-            _frameResources[i].CommandBuffer = _context.Device.AllocateCommandBuffer(
-                new VkCommandBufferAllocateInfo
-                {
-                    CommandPool = _context.CommandPool,
-                    Level = VkCommandBufferLevel.Primary
-                }
-            );
+            _frameResources[i] = new FrameResources
+            {
+                ImageAvailable = _context.Device.CreateSemaphore(new VkSemaphoreCreateInfo(), null),
+                Fence = _context.Device.CreateFence(VkFenceCreateFlags.SignaledBit, null),
+                CommandBuffer = _context.Device.AllocateCommandBuffer(
+                    new VkCommandBufferAllocateInfo
+                    {
+                        CommandPool = _context.CommandPool,
+                        Level = VkCommandBufferLevel.Primary
+                    }
+                )
+            };
         }
 
         Swapchain = new Swapchain(_context, _window);
+        _targets = new RenderTargets(context.Allocator, Swapchain.SurfaceFormat.Format, Swapchain.Extent, MsaaSamples);
     }
 
     public void Initialize(PipelineManager pipelineManager, DescriptorManager descriptorManager,
@@ -84,30 +89,28 @@ public sealed class Renderer : IDisposable
             new EntityIdPass(_pipelineManager.GetPipeline("Entity Id")),
             new SelectionMaskPass(_pipelineManager.GetPipeline("Selection Mask")),
             new OpaquePass(),
-            new AtmospherePass(_pipelineManager.GetPipeline("Atmosphere")),
-            new SeedInitPass(_pipelineManager.GetPipeline("Seed Init")),
-            new JumpFloodPass(_pipelineManager.GetPipeline("Jump Flood")),
-            new OutlineCompositePass(_pipelineManager.GetPipeline("Outline Composite")),
+            new AtmospherePass(_pipelineManager.GetPipeline("Atmosphere"), _descriptorManager),
+            new SeedInitPass(_pipelineManager.GetPipeline("Seed Init"), _descriptorManager),
+            new JumpFloodPass(_pipelineManager.GetPipeline("Jump Flood"), _descriptorManager),
+            new OutlineCompositePass(_pipelineManager.GetPipeline("Outline Composite"), _descriptorManager),
             new ImGuiPass(_imGuiManager)
         ];
 
         AllocateDescriptorSets();
 
-        CreateFrameBuffers();
+        CreatePerFrameBuffers();
         UpdateFrameDescriptors();
 
-        CreateResources();
+        NotifyTargetsRecreated();
     }
 
-    private void CreateFrameBuffers()
+    private void CreatePerFrameBuffers()
     {
-        for (var i = 0; i < _frameResources.Length; i++)
+        foreach (var r in _frameResources)
         {
-            ref var r = ref _frameResources[i];
-
             var lightBuffer = new BufferEx.CreateInfo
             {
-                Name = $"Lights Storage Buffer {i}",
+                Name = "Lights Storage Buffer",
                 BufferSize = ByteSize.Of<UInt32>() * 4 + ByteSize.Of<GpuLight>() * Constants.MaxLights,
                 BufferUsage = VkBufferUsageFlags.StorageBufferBit,
                 AllocRequiredProperties = VkMemoryPropertyFlags.HostVisibleBit | VkMemoryPropertyFlags.HostCoherentBit
@@ -117,7 +120,7 @@ public sealed class Renderer : IDisposable
 
             var cameraBuffer = new BufferEx.CreateInfo
             {
-                Name = $"Camera Buffer {i}",
+                Name = "Camera Buffer",
                 BufferSize = ByteSize.Of<GpuCamera>(),
                 BufferUsage = VkBufferUsageFlags.UniformBufferBit,
                 AllocRequiredProperties = VkMemoryPropertyFlags.HostVisibleBit | VkMemoryPropertyFlags.HostCoherentBit
@@ -127,7 +130,7 @@ public sealed class Renderer : IDisposable
         }
     }
 
-    private unsafe void UpdateLights(ref FrameResources r, ReadOnlySpan<GpuLight> lights)
+    private unsafe void UpdateLights(FrameResources r, ReadOnlySpan<GpuLight> lights)
     {
         if (lights.Length > Constants.MaxLights)
             throw new ArgumentOutOfRangeException(nameof(lights));
@@ -152,7 +155,7 @@ public sealed class Renderer : IDisposable
         }
     }
 
-    private unsafe void UpdateCamera(ref FrameResources r, GpuCamera camera)
+    private unsafe void UpdateCamera(FrameResources r, GpuCamera camera)
     {
         Buffer.MemoryCopy(
             &camera,
@@ -164,10 +167,8 @@ public sealed class Renderer : IDisposable
 
     private unsafe void UpdateFrameDescriptors()
     {
-        for (var i = 0; i < _frameResources.Length; i++)
+        foreach (var r in _frameResources)
         {
-            ref var r = ref _frameResources[i];
-
             var lightsInfo = new VkDescriptorBufferInfo
             {
                 Buffer = r.LightsBuffer.VkBuffer,
@@ -224,135 +225,28 @@ public sealed class Renderer : IDisposable
 
         Swapchain.Recreate(_window);
 
-        foreach (ref var r in _frameResources.AsSpan())
-        {
-            r.DisposeTargets();
-        }
-
-        CreateResources();
+        _targets.Dispose();
+        _targets = new RenderTargets(_context.Allocator, Swapchain.SurfaceFormat.Format, Swapchain.Extent, MsaaSamples);
+        NotifyTargetsRecreated();
 
         _imGuiManager.UpdateDisplaySize();
         _picker.Reset();
     }
 
-    private void CreateResources()
-    {
-        CreateRenderTargets();
-        UpdateImageDescriptors();
-    }
-
-    private void CreateRenderTargets()
-    {
-        for (var i = 0; i < _frameResources.Length; i++)
-        {
-            ref var r = ref _frameResources[i];
-
-            (r.ColorImage, r.ColorImageView) = CreateImage("Color Image",
-                Swapchain.SurfaceFormat.Format,
-                VkImageUsageFlags.ColorAttachmentBit | VkImageUsageFlags.TransientAttachmentBit,
-                samples: MsaaSamples);
-
-            (r.ResolveColorImage, r.ResolveColorImageView) = CreateImage("Resolve Color Image",
-                Swapchain.SurfaceFormat.Format, VkImageUsageFlags.ColorAttachmentBit | VkImageUsageFlags.SampledBit);
-
-            (r.DepthImage, r.DepthImageView) = CreateImage("Depth Image",
-                VkFormat.D32SFloat, VkImageUsageFlags.DepthStencilAttachmentBit, VkImageAspectFlags.DepthBit,
-                MsaaSamples);
-
-            (r.PostProcessImage, r.PostProcessImageView) = CreateImage("Post Process Image",
-                Swapchain.SurfaceFormat.Format, VkImageUsageFlags.ColorAttachmentBit | VkImageUsageFlags.SampledBit);
-
-            (r.EntityIdImage, r.EntityIdImageView) = CreateImage("Entity Id Image",
-                VkFormat.R32UInt,
-                VkImageUsageFlags.TransferSrcBit | VkImageUsageFlags.StorageBit | VkImageUsageFlags.SampledBit |
-                VkImageUsageFlags.ColorAttachmentBit);
-
-            (r.EntityIdDepthImage, r.EntityIdDepthImageView) = CreateImage("Entity Id Depth Image",
-                VkFormat.D32SFloat, VkImageUsageFlags.DepthStencilAttachmentBit | VkImageUsageFlags.SampledBit,
-                VkImageAspectFlags.DepthBit);
-
-            (r.SelectionMaskImage, r.SelectionMaskImageView) = CreateImage("Selection Mask Image",
-                VkFormat.R8UNorm,
-                VkImageUsageFlags.TransferDstBit | VkImageUsageFlags.StorageBit | VkImageUsageFlags.SampledBit |
-                VkImageUsageFlags.ColorAttachmentBit);
-
-            (r.SeedAImage, r.SeedAImageView) = CreateImage("Seed A Image",
-                VkFormat.R32G32SInt,
-                VkImageUsageFlags.TransferDstBit | VkImageUsageFlags.StorageBit | VkImageUsageFlags.SampledBit);
-
-            (r.SeedBImage, r.SeedBImageView) = CreateImage("Seed B Image",
-                VkFormat.R32G32SInt,
-                VkImageUsageFlags.TransferDstBit | VkImageUsageFlags.StorageBit | VkImageUsageFlags.SampledBit);
-        }
-    }
-
     private void AllocateDescriptorSets()
     {
-        for (var i = 0; i < _frameResources.Length; i++)
+        foreach (var r in _frameResources)
         {
-            ref var r = ref _frameResources[i];
-
             r.PerFrameDescriptorSet = _descriptorManager.AllocatePerFrameDescriptorSet();
-            r.SeedDescriptorSet = _descriptorManager.AllocateSeedDescriptorSet();
-            r.SeedAToBDescriptorSet = _descriptorManager.AllocateSeedAToBDescriptorSet();
-            r.SeedBToADescriptorSet = _descriptorManager.AllocateSeedBToADescriptorSet();
-            r.OutlineCompositeDescriptorSet = _descriptorManager.AllocateOutlineDescriptorSet();
-            r.AtmosphereDescriptorSet = _descriptorManager.AllocateAtmosphereDescriptor();
         }
     }
 
-    private void UpdateImageDescriptors()
+    private void NotifyTargetsRecreated()
     {
-        for (var i = 0; i < _frameResources.Length; i++)
+        foreach (var pass in _renderPasses)
         {
-            ref var r = ref _frameResources[i];
-
-            _descriptorManager.UpdateSeedDescriptor(r.SeedDescriptorSet,
-                r.SelectionMaskImageView.VkImageView, r.SeedAImageView.VkImageView);
-            _descriptorManager.UpdateSeedDescriptor(r.SeedAToBDescriptorSet,
-                r.SeedAImageView.VkImageView, r.SeedBImageView.VkImageView);
-            _descriptorManager.UpdateSeedDescriptor(r.SeedBToADescriptorSet,
-                r.SeedBImageView.VkImageView, r.SeedAImageView.VkImageView);
-            _descriptorManager.UpdateOutlineDescriptor(r.OutlineCompositeDescriptorSet,
-                r.PostProcessImageView.VkImageView, r.SeedAImageView.VkImageView);
-            _descriptorManager.UpdateAtmosphereDescriptor(r.AtmosphereDescriptorSet,
-                r.ResolveColorImageView.VkImageView, r.EntityIdDepthImageView.VkImageView);
+            if (pass is ITargetConsumer c) c.OnTargetsRecreated(_targets);
         }
-    }
-
-    private (TrackedImage Image, ImageViewEx View) CreateImage(String name, VkFormat format, VkImageUsageFlags usage,
-        VkImageAspectFlags aspect = VkImageAspectFlags.ColorBit, VkSampleCountFlags samples = VkSampleCountFlags._1Bit)
-    {
-        var image = _context.Allocator.CreateImage(new ImageEx.CreateInfo
-        {
-            Name = name,
-            ImageType = VkImageType._2D,
-            ImageFormat = format,
-            ImageExtent = new VkExtent3D
-            {
-                Width = Swapchain.Extent.Width,
-                Height = Swapchain.Extent.Height,
-                Depth = 1
-            },
-            ImageMipLevels = 1,
-            ImageArrayLayers = 1,
-            ImageSamples = samples,
-            ImageTiling = VkImageTiling.Optimal,
-            ImageUsage = usage,
-            ImageSharingMode = VkSharingMode.Exclusive,
-            AllocRequiredProperties = VkMemoryPropertyFlags.DeviceLocalBit
-        });
-
-        var view = image.CreateImageView(VkImageViewType._2D, new VkImageSubresourceRange
-        {
-            AspectMask = aspect,
-            BaseMipLevel = 0,
-            LayerCount = 1,
-            BaseArrayLayer = 0,
-            LevelCount = 1
-        }, null);
-
-        return (new TrackedImage(image), view);
     }
 
     private VkSampleCountFlags GetMaxSampleCount()
@@ -411,13 +305,13 @@ public sealed class Renderer : IDisposable
     private void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, GpuCamera camera, Int32 imageIndex,
         ReadOnlySpan<GpuLight> lights)
     {
-        ref var r = ref _frameResources[_frameIndex];
+        var r = _frameResources[_frameIndex];
 
         var context = new RenderContext
         {
             FrameResources = r,
+            Targets = _targets,
             SwapchainImageView = Swapchain.ImageView(imageIndex),
-            Extent = Swapchain.Extent,
             Camera = camera,
             GlobalDescriptorSet = _descriptorManager.GlobalSet,
             FrameIndex = _frameIndex
@@ -458,15 +352,15 @@ public sealed class Renderer : IDisposable
 
         var items = _renderItems.AsSpan();
 
-        UpdateLights(ref r, lights);
-        UpdateCamera(ref r, camera);
+        UpdateLights(r, lights);
+        UpdateCamera(r, camera);
 
         foreach (var pass in _renderPasses)
         {
             pass.Record(context, items);
         }
 
-        _picker.Record(r.CommandBuffer, _frameIndex, r.EntityIdImage, Swapchain.Extent);
+        _picker.Record(r.CommandBuffer, _frameIndex, _targets.EntityId.Image, _targets.Extent);
 
         ImageUtility.TransitionImage(
             Swapchain.Image(imageIndex),
@@ -485,16 +379,16 @@ public sealed class Renderer : IDisposable
 
     private void SubmitFrame(Int32 imageIndex)
     {
-        ref var resources = ref _frameResources[_frameIndex];
+        var r = _frameResources[_frameIndex];
 
-        _context.Device.ResetFences([resources.Fence]);
+        _context.Device.ResetFences([r.Fence]);
 
         _context.Queue.Submit(
-            [resources.ImageAvailable],
+            [r.ImageAvailable],
             [VkPipelineStageFlags.ColorAttachmentOutputBit],
-            [resources.CommandBuffer],
+            [r.CommandBuffer],
             [Swapchain.RenderFinished(imageIndex)],
-            resources.Fence
+            r.Fence
         );
     }
 
@@ -531,12 +425,12 @@ public sealed class Renderer : IDisposable
 
     public void Dispose()
     {
-        foreach (ref var r in _frameResources.AsSpan())
+        foreach (var r in _frameResources)
         {
-            r.DisposeTargets();
             r.DestroySync(_context.Device);
         }
 
+        _targets.Dispose();
         Swapchain.Dispose();
     }
 }

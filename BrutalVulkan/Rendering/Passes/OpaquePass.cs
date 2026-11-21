@@ -10,21 +10,21 @@ public sealed class OpaquePass : IRenderPass
 {
     public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
     {
-        context.FrameResources.ColorImage.TransitionTo(context.CommandBuffer, VkImageLayout.ColorAttachmentOptimal,
+        context.Targets.Color.Image.TransitionTo(context.CommandBuffer, VkImageLayout.ColorAttachmentOptimal,
             VkPipelineStageFlags.ColorAttachmentOutputBit, VkAccessFlags.ColorAttachmentWriteBit);
         
-        context.FrameResources.ResolveColorImage.TransitionTo(context.CommandBuffer, VkImageLayout.ColorAttachmentOptimal,
+        context.Targets.Resolve.Image.TransitionTo(context.CommandBuffer, VkImageLayout.ColorAttachmentOptimal,
             VkPipelineStageFlags.ColorAttachmentOutputBit, VkAccessFlags.ColorAttachmentWriteBit);
         
-        context.FrameResources.DepthImage.TransitionTo(context.CommandBuffer, VkImageLayout.DepthAttachmentOptimal,
+        context.Targets.Depth.Image.TransitionTo(context.CommandBuffer, VkImageLayout.DepthAttachmentOptimal,
             VkPipelineStageFlags.EarlyFragmentTestsBit, VkAccessFlags.DepthStencilAttachmentWriteBit, VkImageAspectFlags.DepthBit);
         
         var colorAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.FrameResources.ColorImageView.VkImageView,
+            ImageView = context.Targets.Color.View.VkImageView,
             ImageLayout = VkImageLayout.ColorAttachmentOptimal,
             ResolveMode = VkResolveModeFlags.AverageBit,
-            ResolveImageView = context.FrameResources.ResolveColorImageView.VkImageView,
+            ResolveImageView = context.Targets.Resolve.View.VkImageView,
             ResolveImageLayout = VkImageLayout.ColorAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Clear,
             StoreOp = VkAttachmentStoreOp.Store,
@@ -33,7 +33,7 @@ public sealed class OpaquePass : IRenderPass
 
         var depthAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.FrameResources.DepthImageView.VkImageView,
+            ImageView = context.Targets.Depth.View.VkImageView,
             ImageLayout = VkImageLayout.DepthAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Clear,
             StoreOp = VkAttachmentStoreOp.Store,
@@ -43,7 +43,7 @@ public sealed class OpaquePass : IRenderPass
         context.CommandBuffer.BeginRendering(
             new VkRenderingInfo
             {
-                RenderArea = new VkRect2D(context.Extent),
+                RenderArea = new VkRect2D(context.Targets.Extent),
                 LayerCount = 1,
                 ColorAttachmentCount = 1,
                 ColorAttachments = &colorAttachment,
@@ -55,14 +55,14 @@ public sealed class OpaquePass : IRenderPass
             new VkViewport
             {
                 X = 0.0f,
-                Y = context.Extent.Height,
-                Width = context.Extent.Width,
-                Height = -context.Extent.Height,
+                Y = context.Targets.Extent.Height,
+                Width = context.Targets.Extent.Width,
+                Height = -context.Targets.Extent.Height,
                 MinDepth = 0.0f,
                 MaxDepth = 1.0f
             }
         ]);
-        context.CommandBuffer.SetScissor(0, [new VkRect2D(context.Extent)]);
+        context.CommandBuffer.SetScissor(0, [new VkRect2D(context.Targets.Extent)]);
 
         var cachedPipelineId = PipelineId.Invalid;
         Pipeline? pipeline = null;

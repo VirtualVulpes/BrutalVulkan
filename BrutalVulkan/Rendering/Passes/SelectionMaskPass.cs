@@ -18,13 +18,13 @@ public class SelectionMaskPass : IRenderPass
 
     public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
     {
-        context.FrameResources.SelectionMaskImage.TransitionTo(context.CommandBuffer,
+        context.Targets.SelectionMask.Image.TransitionTo(context.CommandBuffer,
             VkImageLayout.ColorAttachmentOptimal, VkPipelineStageFlags.ColorAttachmentOutputBit,
             VkAccessFlags.ColorAttachmentWriteBit);
 
         var colorAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.FrameResources.SelectionMaskImageView.VkImageView,
+            ImageView = context.Targets.SelectionMask.View.VkImageView,
             ImageLayout = VkImageLayout.ColorAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Clear,
             StoreOp = VkAttachmentStoreOp.Store,
@@ -34,7 +34,7 @@ public class SelectionMaskPass : IRenderPass
         context.CommandBuffer.BeginRendering(
             new VkRenderingInfo
             {
-                RenderArea = new VkRect2D(context.Extent),
+                RenderArea = new VkRect2D(context.Targets.Extent),
                 LayerCount = 1,
                 ColorAttachmentCount = 1,
                 ColorAttachments = &colorAttachment
@@ -45,14 +45,14 @@ public class SelectionMaskPass : IRenderPass
             new VkViewport
             {
                 X = 0.0f,
-                Y = context.Extent.Height,
-                Width = context.Extent.Width,
-                Height = -context.Extent.Height,
+                Y = context.Targets.Extent.Height,
+                Width = context.Targets.Extent.Width,
+                Height = -context.Targets.Extent.Height,
                 MinDepth = 0.0f,
                 MaxDepth = 1.0f
             }
         ]);
-        context.CommandBuffer.SetScissor(0, [new VkRect2D(context.Extent)]);
+        context.CommandBuffer.SetScissor(0, [new VkRect2D(context.Targets.Extent)]);
 
         context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
         context.CommandBuffer
