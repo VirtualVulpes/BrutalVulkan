@@ -15,7 +15,7 @@ struct GpuLight {
     float outerCos;
 };
 
-layout(std430, set = 0, binding = 1) readonly buffer LightBuffer 
+layout(std430, set = 1, binding = 0) readonly buffer LightBuffer 
 { 
     uint lightCount;
     GpuLight lights[]; 

@@ -68,9 +68,6 @@ public class EntityIdPass : IRenderPass
         context.CommandBuffer.SetScissor(0, [new VkRect2D(context.Extent)]);
 
         context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
-        context.CommandBuffer
-            .BindDescriptorSets(VkPipelineBindPoint.Graphics, _pipeline.Layout, 0, [context.GlobalDescriptorSet],
-                null);
 
         foreach (var renderObject in renderObjects)
         {

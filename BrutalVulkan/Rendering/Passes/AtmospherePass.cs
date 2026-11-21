@@ -61,7 +61,7 @@ public class AtmospherePass : IRenderPass
         context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
         context.CommandBuffer
             .BindDescriptorSets(VkPipelineBindPoint.Graphics, _pipeline.Layout, 0,
-                [context.GlobalDescriptorSet, context.FrameResources.AtmosphereDescriptorSet],
+                [context.FrameResources.PerFrameDescriptorSet, context.FrameResources.AtmosphereDescriptorSet],
                 null);
 
         var pushConsts = new PushConstantBlocks.AtmosphereBlock

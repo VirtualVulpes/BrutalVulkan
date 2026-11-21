@@ -115,7 +115,7 @@ public class PipelineFactory
             RasterizationStateCreateInfo = rasterizationState,
             MultisampleStateCreateInfo = multisampleState,
             DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorManager.GlobalLayout],
+            DescriptorSetLayouts = [_descriptorManager.GlobalLayout, _descriptorManager.PerFrameLayout],
             PushConstantRanges = [.. pushConstantRanges],
             ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
         };
@@ -261,7 +261,7 @@ public class PipelineFactory
             RasterizationStateCreateInfo = rasterizationState,
             MultisampleStateCreateInfo = multisampleState,
             DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorManager.GlobalLayout],
+            DescriptorSetLayouts = [_descriptorManager.GlobalLayout, _descriptorManager.PerFrameLayout],
             PushConstantRanges = [.. pushConstantRanges],
             ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
         };
@@ -334,7 +334,7 @@ public class PipelineFactory
             RasterizationStateCreateInfo = rasterizationState,
             MultisampleStateCreateInfo = multisampleState,
             DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorManager.GlobalLayout],
+            DescriptorSetLayouts = [_descriptorManager.GlobalLayout, _descriptorManager.PerFrameLayout],
             PushConstantRanges = [.. pushConstantRanges],
             ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
         };
@@ -407,7 +407,7 @@ public class PipelineFactory
             RasterizationStateCreateInfo = rasterizationState,
             MultisampleStateCreateInfo = multisampleState,
             DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorManager.GlobalLayout],
+            DescriptorSetLayouts = [_descriptorManager.GlobalLayout, _descriptorManager.PerFrameLayout],
             PushConstantRanges = [.. pushConstantRanges],
             ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
         };
@@ -480,7 +480,7 @@ public class PipelineFactory
             RasterizationStateCreateInfo = rasterizationState,
             MultisampleStateCreateInfo = multisampleState,
             DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorManager.GlobalLayout],
+            DescriptorSetLayouts = [_descriptorManager.GlobalLayout, _descriptorManager.PerFrameLayout],
             PushConstantRanges = [.. pushConstantRanges],
             ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
         };
@@ -653,7 +653,7 @@ public class PipelineFactory
             RasterizationStateCreateInfo = rasterizationState,
             MultisampleStateCreateInfo = multisampleState,
             DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorManager.GlobalLayout],
+            DescriptorSetLayouts = [],
             PushConstantRanges = [.. pushConstantRanges],
             ColorBlendStateCreateInfo = Presets.BlendState.BlendNone.Value
         };
@@ -719,7 +719,7 @@ public class PipelineFactory
             RasterizationStateCreateInfo = rasterizationState,
             MultisampleStateCreateInfo = multisampleState,
             DepthStencilStateCreateInfo = depthStencil,
-            DescriptorSetLayouts = [_descriptorManager.GlobalLayout, _descriptorManager.AtmosphereLayout],
+            DescriptorSetLayouts = [_descriptorManager.PerFrameLayout, _descriptorManager.AtmosphereLayout],
             PushConstantRanges = [.. pushConstantRanges],
             ColorBlendStateCreateInfo = Presets.BlendState.BlendColorAlpha.Value
         };

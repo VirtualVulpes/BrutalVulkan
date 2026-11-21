@@ -76,7 +76,7 @@ public sealed class OpaquePass : IRenderPass
 
                 context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, pipeline.Handle);
                 context.CommandBuffer
-                    .BindDescriptorSets(VkPipelineBindPoint.Graphics, pipeline.Layout, 0, [context.GlobalDescriptorSet],
+                    .BindDescriptorSets(VkPipelineBindPoint.Graphics, pipeline.Layout, 0, [context.GlobalDescriptorSet, context.FrameResources.PerFrameDescriptorSet],
                         null);
             }
 

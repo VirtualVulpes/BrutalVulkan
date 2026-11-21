@@ -6,7 +6,7 @@ const int MAX_STEPS = 40;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 2, std140) uniform CameraBuffer 
+layout(set = 0, binding = 1, std140) uniform CameraBuffer 
 {
     mat4 view;
     mat4 proj;

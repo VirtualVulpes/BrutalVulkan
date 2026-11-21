@@ -41,6 +41,8 @@ public sealed class App : IDisposable
     private readonly CameraSystem _cameraSystem;
     private CameraController _cameraController;
 
+    private EntityPicker _picker;
+
     public App()
     {
         _window = Glfw.CreateWindow(
@@ -95,12 +97,11 @@ public sealed class App : IDisposable
 
         _cmdManager = new CommandBufferManager(_context.Device, _context.Queue, _context.CommandPool);
 
-        _renderer = new Renderer(_context.Device, _context.PhysicalDevice, _context.Surface, _window,
-            _context.Allocator, _context.CommandPool, _context.Queue);
+        _renderer = new Renderer(_context, _window);
 
         var pipelineBuildContext = new PipelineBuildContext
         {
-            ColorFormat = _renderer.SwapchainFormat.Format,
+            ColorFormat = _renderer.Swapchain.SurfaceFormat.Format,
             MsaaSamples = _renderer.MsaaSamples
         };
         _imGuiManager =
@@ -115,7 +116,8 @@ public sealed class App : IDisposable
         LoadTextures();
         LoadModels();
 
-        _renderer.Initialize(_pipelineManager, _descriptorManager, _imGuiManager, _meshManager, _inputManager);
+        _picker = new EntityPicker(_context.Device, _inputManager);
+        _renderer.Initialize(_pipelineManager, _descriptorManager, _imGuiManager, _meshManager, _picker);
     }
 
     public void Run()
@@ -159,7 +161,7 @@ public sealed class App : IDisposable
                         break;
                     }
 
-                    var entity = _renderer.Picker.HoveredEntity;
+                    var entity = _picker.HoveredEntity;
                     if (!_world.IsEntityAlive(entity)) break;
 
                     if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Left))
@@ -171,7 +173,7 @@ public sealed class App : IDisposable
                     if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Right))
                     {
                         _world.DestroyEntity(entity);
-                        _renderer.Picker.Reset();
+                        _picker.Reset();
                         break;
                     }
 
@@ -191,7 +193,7 @@ public sealed class App : IDisposable
 
             CreateUI();
 
-            _renderer.DrawFrame(renderSystem.BuildRenderObjects(), _cameraSystem.GetActiveCameraData(_renderer.Extent),
+            _renderer.DrawFrame(renderSystem.BuildRenderObjects(), _cameraSystem.GetActiveCameraData(_renderer.Swapchain.Extent),
                 renderSystem.BuildGpuLights());
         }
     }
@@ -236,6 +238,7 @@ public sealed class App : IDisposable
         _context.Device.WaitIdle();
 
         _renderer.Dispose();
+        _picker.Dispose();
 
         _imGuiManager.Dispose();
 
