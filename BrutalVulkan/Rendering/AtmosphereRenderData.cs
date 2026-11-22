@@ -8,4 +8,6 @@ public struct AtmosphereRenderData
     public Single Radius;
     public float3 LightDirection;
     public UInt32 Enabled;
+    public float3 LightColor;
+    public Single LightIntensity;
 }

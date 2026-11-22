@@ -59,7 +59,7 @@ public static class PushConstantBlocks
         public UInt32 Id;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
     public struct AtmosphereBlock
     {
         [FieldOffset(0)]
@@ -73,5 +73,11 @@ public static class PushConstantBlocks
 
         [FieldOffset(28)] 
         public UInt32 Enabled; // 0 or 1
+        
+        [FieldOffset(32)] 
+        public float3 LightColor;
+        
+        [FieldOffset(44)] 
+        public Single LightIntensity;
     }
 }

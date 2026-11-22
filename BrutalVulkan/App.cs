@@ -78,7 +78,7 @@ public sealed class App : IDisposable
         _editorInput = new EditorInput(_inputManager, world, _systemManager.GetSystem<NodeSystem>(), _picker, selection);
 
         var resolver = new AssetResolver(_meshManager, _pipelineManager, _textureManager);
-        new SceneLoader(resolver).Load(DemoScene.Create(), world);
+        new SceneLoader(resolver).Load(PlanetScene.Create(), world);
 
         _cameraController = new CameraController(world, _inputManager, _cameraSystem);
     }

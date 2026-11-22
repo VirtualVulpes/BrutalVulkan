@@ -115,7 +115,9 @@ public sealed class RenderSystem : ISystem
                     Center = atmoWorld.Translation,
                     Radius = atmo.C1.Radius * Single.Max(scale.X, Single.Max(scale.Y, scale.Z)),
                     LightDirection = GetLightDirection(light.Entity, light.C1.Direction),
-                    Enabled = 1
+                    Enabled = 1,
+                    LightColor = light.C1.Color,
+                    LightIntensity = light.C1.Intensity
                 };
                 return; // exits after finding first light (the sun)
             }

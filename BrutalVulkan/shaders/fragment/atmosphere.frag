@@ -26,6 +26,8 @@ layout(push_constant) uniform PushConstants
     float radius;
     vec3 lightDir;
     uint enabled;
+    vec3 lightColor;
+    float lightIntensity;
 } pc;
 
 vec2 intersectSphere(vec3 origin, vec3 dir, vec3 center, float radius) 
@@ -130,12 +132,8 @@ void main()
 
     float stepSize = (tFar - tNear) / float(MAX_STEPS);
 
-    vec3 lightColor = vec3(1.0, 0.95, 0.85);
-
     float g = 0.3;
     
-    float lightIntensity = 10.0;
-
     float jitter = rand(uvec2(gl_FragCoord.xy));
     float extinction = (absorbCoeff + scatterCoeff) * density;
     float stepT = exp(-extinction * stepSize);
@@ -151,7 +149,7 @@ void main()
 
         float cosTheta = clamp(dot(dir, -pc.lightDir), -1.0, 1.0);
 
-        vec3 inscatter = lightColor * lightIntensity * scatterCoeff * density * phase(g, cosTheta) * li;
+        vec3 inscatter = pc.lightColor * pc.lightIntensity * scatterCoeff * density * phase(g, cosTheta) * li;
 
         color += transmission * halfT * inscatter * stepSize;
         transmission *= stepT;

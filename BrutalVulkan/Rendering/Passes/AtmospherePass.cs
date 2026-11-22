@@ -74,7 +74,9 @@ public class AtmospherePass : IRenderPass, ITargetConsumer
             Center = a.Center,
             Radius = a.Radius,
             LightDirection = a.LightDirection,
-            Enabled = a.Enabled
+            Enabled = a.Enabled,
+            LightColor = a.LightColor,
+            LightIntensity = a.LightIntensity
         };
         
         context.CommandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit, ByteSize.Zero, pushConsts);
