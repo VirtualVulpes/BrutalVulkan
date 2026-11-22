@@ -66,6 +66,7 @@ public class CameraSystem : ISystem
         {
             View = view,
             Proj = proj,
+            ViewProj = view * proj,
             InvView = invView,
             InvProj = invProj,
             Position = transform.Position,

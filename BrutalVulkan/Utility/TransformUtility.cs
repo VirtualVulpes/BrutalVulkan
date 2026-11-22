@@ -1,4 +1,5 @@
 using Brutal.Numerics;
+using BrutalVulkan.ECS;
 using BrutalVulkan.ECS.Components;
 
 namespace BrutalVulkan.Utility;
@@ -10,6 +11,15 @@ public static class TransformUtility
         return float4x4.CreateScale(transform.Scale) *
                float4x4.CreateFromQuaternion(transform.Rotation) *
                float4x4.CreateTranslation(transform.Position);
+    }
+    
+    public static float3 GetScale(float4x4 WorldMatrix)
+    {
+        var scaleX = new float3(WorldMatrix.X.X, WorldMatrix.X.Y, WorldMatrix.X.Z).Length();
+        var scaleY = new float3(WorldMatrix.Y.X, WorldMatrix.Y.Y, WorldMatrix.Y.Z).Length();
+        var scaleZ = new float3(WorldMatrix.Z.X, WorldMatrix.Z.Y, WorldMatrix.Z.Z).Length();
+
+        return new float3(scaleX, scaleY, scaleZ);
     }
 
     public static void MoveLocal(ref TransformComponent transform, float3 delta)

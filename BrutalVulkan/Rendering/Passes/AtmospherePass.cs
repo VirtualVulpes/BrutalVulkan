@@ -68,11 +68,13 @@ public class AtmospherePass : IRenderPass, ITargetConsumer
                 [context.FrameResources.PerFrameDescriptorSet, _descriptorSet],
                 null);
 
+        var a = context.Scene.Atmosphere;
         var pushConsts = new PushConstantBlocks.AtmosphereBlock
         {
-            Center = new float3(0.0f, 0.0f, 0.0f),
-            Radius = 1.05f,
-            LightPosition = new float3(100.0f, 100.0f, 0.0f),
+            Center = a.Center,
+            Radius = a.Radius,
+            LightDirection = a.LightDirection,
+            Enabled = a.Enabled
         };
         
         context.CommandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit, ByteSize.Zero, pushConsts);

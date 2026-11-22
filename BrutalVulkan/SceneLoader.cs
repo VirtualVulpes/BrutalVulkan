@@ -28,19 +28,33 @@ public sealed class SceneLoader
         }
     }
 
-    private void LoadEntity(EntityDef entityDef, World world)
+    private Entity LoadEntity(EntityDef entityDef, World world)
     {
         var entity = world.CreateEntity();
 
+        foreach (var child in entityDef.Children)
+        {
+            var c = LoadEntity(child, world);
+            world.AddComponent(c, new ParentComponent{Parent = entity});
+        }
+        
         foreach (var component in entityDef.Components)
         {
             component.Apply(world, entity, _assets);
         }
+
+        return entity;
     }
 
     private void LoadPlanet(PlanetDef planetDef, World world)
     {
         var entity = world.CreateEntity();
+        
+        foreach (var child in planetDef.Children)
+        {
+            var c = LoadEntity(child, world);
+            world.AddComponent(c, new ParentComponent{Parent = entity});
+        }
         
         foreach (var component in planetDef.Components)
         {
@@ -52,7 +66,7 @@ public sealed class SceneLoader
             var child = world.CreateEntity();
             world.AddComponent(child, new NodeComponent { Face = face, Level = 0, X = 0, Y = 0 });
             world.AddComponent(child, new ParentComponent {Parent = entity});
-            foreach (var component in planetDef.ChildComponents)
+            foreach (var component in planetDef.FaceComponents)
             {
                 component.Apply(world, child, _assets);
             }

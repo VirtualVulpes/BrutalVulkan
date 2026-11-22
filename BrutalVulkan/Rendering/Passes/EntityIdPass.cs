@@ -73,7 +73,7 @@ public class EntityIdPass : IRenderPass
         {
             var vertPushConsts = new PushConstantBlocks.VertexBlock
             {
-                Mvp = renderObject.ModelMatrix * context.Camera.View * context.Camera.Proj,
+                Mvp = renderObject.ModelMatrix * context.Scene.Camera.ViewProj,
                 Model = renderObject.ModelMatrix
             };
 

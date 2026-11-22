@@ -5,9 +5,19 @@ namespace BrutalVulkan.ECS;
 
 public interface ISceneDef;
 
-public sealed record EntityDef(String Name, params IComponentDef[] Components) : ISceneDef;
+public sealed record EntityDef(String Name, IComponentDef[] Components, EntityDef[]? Children = null) : ISceneDef
+{
+    public EntityDef[] Children { get; } = Children ?? [];
+}
 
-public sealed record PlanetDef(String Name, IComponentDef[] Components, IComponentDef[] ChildComponents) : ISceneDef;
+public sealed record PlanetDef(
+    String Name,
+    IComponentDef[] Components,
+    IComponentDef[] FaceComponents,
+    EntityDef[]? Children = null) : ISceneDef
+{
+    public EntityDef[] Children { get; } = Children ?? [];
+}
 
 public sealed record SceneDef(String Name, IReadOnlyList<ISceneDef> Definitions);
 
@@ -18,6 +28,11 @@ public interface IComponentDef
 
 public sealed record TransformDef(float3 Position, floatQuat Rotation, float3 Scale) : IComponentDef
 {
+    public static TransformDef Identity()
+    {
+        return new TransformDef(float3.Zero, floatQuat.Identity, float3.One);
+    }
+    
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
         world.AddComponent(entity, new TransformComponent { Position = Position, Rotation = Rotation, Scale = Scale });
@@ -101,5 +116,13 @@ public sealed record SelectionDef() : IComponentDef
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
         world.AddComponent(entity, new SelectionComponent());
+    }
+}
+
+public sealed record AtmosphereDef(Single Radius) : IComponentDef
+{
+    public void Apply(World world, Entity entity, AssetResolver assets)
+    {
+        world.AddComponent(entity, new AtmosphereComponent{Radius = Radius});
     }
 }

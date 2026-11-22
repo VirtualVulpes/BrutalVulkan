@@ -10,9 +10,9 @@ layout(set = 0, binding = 1, std140) uniform CameraBuffer
 {
     mat4 view;
     mat4 proj;
+    mat4 viewProj;
     mat4 invView;
     mat4 invProj;
-    
     vec3 pos;
     vec2 invViewport;
 } camera;
@@ -24,7 +24,8 @@ layout(push_constant) uniform PushConstants
 {
     vec3 center;
     float radius;
-    vec3 lightPos;
+    vec3 lightDir;
+    uint enabled;
 } pc;
 
 vec2 intersectSphere(vec3 origin, vec3 dir, vec3 center, float radius) 
@@ -70,6 +71,13 @@ float phase(float g, float cos_theta)
 
 void main()
 {
+    vec4 sceneColor = texture(inputImage, gl_FragCoord.xy * camera.invViewport);
+    if (pc.enabled == 0) 
+    {
+        outColor = sceneColor;
+        return;
+    }
+
     float sceneDepth = texelFetch(depthImage, ivec2(gl_FragCoord.xy), 0).r;
     float sceneDist = 1e30;
     if (sceneDepth < 1.0) {
@@ -97,7 +105,6 @@ void main()
 
     vec2 hit = intersectSphere(camera.pos, dir, pc.center, pc.radius);
     
-    vec4 sceneColor = texture(inputImage, gl_FragCoord.xy * camera.invViewport);
     if (hit.y < 0.0) 
     {
         outColor = sceneColor;
@@ -137,16 +144,12 @@ void main()
     for (int i = 0; i < MAX_STEPS; i++) 
     {
         vec3 pos = camera.pos + dir * (tNear + stepSize * (float(i) + jitter));
-                
-        vec3 toLight = pc.lightPos - pos;
-        float lightDist = length(toLight);
-        vec3 lightDir =  toLight / lightDist;
                        
-        vec2 lightHit = intersectSphere(pos, lightDir, pc.center, pc.radius);
-        float exitDist = min(max(lightHit.y, 0.0), lightDist);
+        vec2 lightHit = intersectSphere(pos, -pc.lightDir, pc.center, pc.radius);
+        float exitDist = max(lightHit.y, 0.0);
         float li = beer(exitDist * density, absorbCoeff, scatterCoeff);
 
-        float cosTheta = clamp(dot(dir, lightDir), -1.0, 1.0);
+        float cosTheta = clamp(dot(dir, -pc.lightDir), -1.0, 1.0);
 
         vec3 inscatter = lightColor * lightIntensity * scatterCoeff * density * phase(g, cosTheta) * li;
 

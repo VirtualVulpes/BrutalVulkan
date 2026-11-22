@@ -193,8 +193,8 @@ public sealed class App : IDisposable
 
             CreateUI();
 
-            _renderer.DrawFrame(renderSystem.BuildRenderObjects(), _cameraSystem.GetActiveCameraData(_renderer.Swapchain.Extent),
-                renderSystem.BuildGpuLights());
+            renderSystem.BuildScene(_cameraSystem.GetActiveCameraData(_renderer.Swapchain.Extent));
+            _renderer.DrawFrame(renderSystem.Scene);
         }
     }
 

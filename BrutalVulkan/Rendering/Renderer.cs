@@ -262,11 +262,10 @@ public sealed class Renderer : IDisposable
         return VkSampleCountFlags._1Bit;
     }
 
-    public void DrawFrame(ReadOnlySpan<RenderObject> renderObjects, GpuCamera camera,
-        ReadOnlySpan<GpuLight> lights)
+    public void DrawFrame(SceneData scene)
     {
         if (!BeginFrame(out var imageIndex, out var isSuboptimal)) return;
-        RecordFrame(renderObjects, camera, imageIndex, lights);
+        RecordFrame(imageIndex, scene);
         SubmitFrame(imageIndex);
         PresentFrame(imageIndex, isSuboptimal);
 
@@ -302,8 +301,7 @@ public sealed class Renderer : IDisposable
         return true;
     }
 
-    private void RecordFrame(ReadOnlySpan<RenderObject> renderObjects, GpuCamera camera, Int32 imageIndex,
-        ReadOnlySpan<GpuLight> lights)
+    private void RecordFrame(Int32 imageIndex, SceneData scene)
     {
         var r = _frameResources[_frameIndex];
 
@@ -312,9 +310,9 @@ public sealed class Renderer : IDisposable
             FrameResources = r,
             Targets = _targets,
             SwapchainImageView = Swapchain.ImageView(imageIndex),
-            Camera = camera,
             GlobalDescriptorSet = _descriptorManager.GlobalSet,
-            FrameIndex = _frameIndex
+            FrameIndex = _frameIndex,
+            Scene = scene
         };
 
         r.CommandBuffer.Begin(VkCommandBufferUsageFlags.OneTimeSubmitBit);
@@ -334,7 +332,7 @@ public sealed class Renderer : IDisposable
         _imGuiManager.RenderFrame(_frameIndex);
 
         _renderItems.Clear();
-        foreach (var o in renderObjects)
+        foreach (var o in scene.ObjectSpan)
         {
             _renderItems.Add(new RenderItem
                 {
@@ -352,8 +350,9 @@ public sealed class Renderer : IDisposable
 
         var items = _renderItems.AsSpan();
 
-        UpdateLights(r, lights);
-        UpdateCamera(r, camera);
+        UpdateLights(r, scene.LightSpan);
+        UpdateCamera(r, scene.Camera);
+
 
         foreach (var pass in _renderPasses)
         {

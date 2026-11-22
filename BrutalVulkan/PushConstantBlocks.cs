@@ -69,6 +69,9 @@ public static class PushConstantBlocks
         public Single Radius;
         
         [FieldOffset(16)] 
-        public float3 LightPosition;
+        public float3 LightDirection;
+
+        [FieldOffset(28)] 
+        public UInt32 Enabled; // 0 or 1
     }
 }
