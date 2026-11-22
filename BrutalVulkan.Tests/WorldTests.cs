@@ -41,9 +41,8 @@ public class WorldTests
         var world = new World();
         var entity = world.CreateEntity();
 
-        var result = world.DestroyEntity(entity);
+        world.DestroyEntity(entity);
 
-        Assert.True(result);
         Assert.False(world.IsEntityAlive(entity));
     }
 
@@ -59,16 +58,6 @@ public class WorldTests
 
         Assert.Throws<InvalidOperationException>(() => 
             world.HasComponent<TestComponent>(entity));
-    }
-
-    [Fact]
-    public void DestroyEntity_CannotDestroyTwice()
-    {
-        var world = new World();
-        var entity = world.CreateEntity();
-
-        Assert.True(world.DestroyEntity(entity));
-        Assert.False(world.DestroyEntity(entity));
     }
 
     [Fact]

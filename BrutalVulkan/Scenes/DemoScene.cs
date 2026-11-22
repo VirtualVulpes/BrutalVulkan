@@ -6,10 +6,10 @@ namespace BrutalVulkan.Scenes;
 
 public static class DemoScene
 {
-    public static SceneDef Create() => new(Name: "Demo",
+    public static SceneDef Create() => new(Name: "Demo Scene",
         Definitions:
         [
-            new EntityDef(Name: "floor",
+            new EntityDef(Name: "Floor",
                 Components:
                 [
                     new TransformDef
@@ -22,7 +22,7 @@ public static class DemoScene
                     new PipelineDef("Phong Texture"),
                     new TextureDef("brick")
                 ]),
-            new EntityDef(Name: "spinning_cube",
+            new EntityDef(Name: "Spinning Cube",
                 Components:
                 [
                     new TransformDef
@@ -38,7 +38,23 @@ public static class DemoScene
                         WorldAngularVelocity = new float3(0.2f, 1.0f, 0.4f)
                     }
                 ]),
-            new EntityDef(Name: "viking_room",
+            new EntityDef(Name: "Spinning Cube",
+                Components:
+                [
+                    new TransformDef
+                    {
+                        Position = new float3(3.0f, 5.0f, -1.0f),
+                    },
+                    new MeshDef("cube"),
+                    new PipelineDef("Phong Texture"),
+                    new TextureDef("statue"),
+                    new RotateDef
+                    {
+                        LocalAngularVelocity = new float3(1.0f, 0.2f, 0.7f),
+                        WorldAngularVelocity = new float3(0.2f, 1.0f, 0.4f)
+                    }
+                ]),
+            new EntityDef(Name: "Viking Room",
                 Components:
                 [
                     new TransformDef
@@ -51,7 +67,7 @@ public static class DemoScene
                     new PipelineDef("Phong Texture"),
                     new TextureDef("viking_room")
                 ]),
-            new EntityDef(Name: "textured_planet",
+            new EntityDef(Name: "Textured Planet",
                 Components:
                 [
                     new TransformDef
@@ -62,7 +78,7 @@ public static class DemoScene
                     new PipelineDef("Phong Texture"),
                     new TextureDef("statue")
                 ]),
-            new EntityDef(Name: "wireframe_planet",
+            new EntityDef(Name: "Wireframe Planet",
                 Components:
                 [
                     new TransformDef
@@ -82,7 +98,7 @@ public static class DemoScene
                 ],
                 Children:
                 [
-                    new EntityDef(Name: "wireframe_moon",
+                    new EntityDef(Name: "Wireframe Moon",
                         Components:
                         [
                             new TransformDef
@@ -99,7 +115,7 @@ public static class DemoScene
                             }
                         ])
                 ]),
-            new EntityDef(Name: "directional_light",
+            new EntityDef(Name: "Directional Light",
                 Components:
                 [
                     new TransformDef
@@ -107,7 +123,7 @@ public static class DemoScene
                         Position = new float3(-2.0f, 6.5f, -2.0f),
                         Scale = new float3(0.05f, 0.05f, 0.05f)
                     },
-                    new MeshDef("sphere"),
+                    new MeshDef("sphere_low_res"),
                     new PipelineDef("Flat Color"),
                     new ColorDef(new float3(1.0f, 0.95f, 0.85f)),
                     new LightDef
@@ -118,7 +134,7 @@ public static class DemoScene
                         Direction = new float3(-1.0f, -1.0f, 0.0f)
                     }
                 ]),
-            new EntityDef(Name: "point_light",
+            new EntityDef(Name: "Point Light",
                 Components:
                 [
                     new TransformDef
@@ -126,7 +142,7 @@ public static class DemoScene
                         Position = new float3(1.0f, -1.0f, -5.5f),
                         Scale = new float3(0.05f, 0.05f, 0.05f)
                     },
-                    new MeshDef("sphere"),
+                    new MeshDef("sphere_low_res"),
                     new PipelineDef("Flat Color"),
                     new ColorDef(new float3(0.3f, 0.2f, 0.6f)),
                     new LightDef
@@ -137,14 +153,14 @@ public static class DemoScene
                         Range = 10.0f
                     }
                 ]),
-            new EntityDef(Name: "spot_light",
+            new EntityDef(Name: "Spot Light",
                 Components:
                 [
                     new TransformDef
                     {
                         Scale = new float3(0.05f, 0.05f, 0.05f)
                     },
-                    new MeshDef("sphere"),
+                    new MeshDef("sphere_low_res"),
                     new PipelineDef("Flat Color"),
                     new ColorDef(new float3(1.0f, 0.5f, 0.5f)),
                     new LightDef
@@ -158,7 +174,7 @@ public static class DemoScene
                         OuterCos = Single.Cos(Single.DegreesToRadians(50.0f))
                     }
                 ]),
-            new EntityDef(Name: "main_camera",
+            new EntityDef(Name: "Main Camera",
                 Components:
                 [
                     new TransformDef
@@ -171,7 +187,7 @@ public static class DemoScene
                     new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
                     new CameraDef()
                 ]),
-            new EntityDef(Name: "left_camera",
+            new EntityDef(Name: "Left Camera",
                 Components:
                 [
                     new TransformDef
@@ -186,7 +202,7 @@ public static class DemoScene
                     new ColorDef(new float3(0.5f, 0.5f, 0.5f)),
                     new CameraDef()
                 ]),
-            new EntityDef(Name: "right_camera",
+            new EntityDef(Name: "Right Camera",
                 Components:
                 [
                     new TransformDef

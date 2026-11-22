@@ -3,6 +3,7 @@ using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using BrutalVulkan.ECS;
+using BrutalVulkan.Input;
 using BrutalVulkan.Rendering;
 
 namespace BrutalVulkan;
@@ -69,7 +70,7 @@ public sealed class EntityPicker : IDisposable
                 Id = new EntityId(raw & 0xFFFF),
                 Generation = (UInt32)(raw & ~(0xFFFF)) >> 16
             };
-            HoveredEntity = entity;
+            HoveredEntity = (entity.Id.Value == UInt16.MaxValue) ? Entity.Invalid : entity;
         }
         finally
         {

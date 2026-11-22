@@ -31,13 +31,17 @@ public sealed class SceneLoader
     private Entity LoadEntity(EntityDef entityDef, World world)
     {
         var entity = world.CreateEntity();
+        world.AddComponent(entity, new NameComponent
+        {
+            Name = entityDef.Name
+        });
 
         foreach (var child in entityDef.Children)
         {
             var c = LoadEntity(child, world);
-            world.AddComponent(c, new ParentComponent{Parent = entity});
+            world.AddComponent(c, new ParentComponent { Parent = entity });
         }
-        
+
         foreach (var component in entityDef.Components)
         {
             component.Apply(world, entity, _assets);
@@ -49,23 +53,27 @@ public sealed class SceneLoader
     private void LoadPlanet(PlanetDef planetDef, World world)
     {
         var entity = world.CreateEntity();
+        world.AddComponent(entity, new NameComponent
+        {
+            Name = planetDef.Name
+        });
         
         foreach (var child in planetDef.Children)
         {
             var c = LoadEntity(child, world);
-            world.AddComponent(c, new ParentComponent{Parent = entity});
+            world.AddComponent(c, new ParentComponent { Parent = entity });
         }
-        
+
         foreach (var component in planetDef.Components)
         {
             component.Apply(world, entity, _assets);
         }
-        
+
         foreach (var face in Enum.GetValues<Face>())
         {
             var child = world.CreateEntity();
             world.AddComponent(child, new NodeComponent { Face = face, Level = 0, X = 0, Y = 0 });
-            world.AddComponent(child, new ParentComponent {Parent = entity});
+            world.AddComponent(child, new ParentComponent { Parent = entity });
             foreach (var component in planetDef.FaceComponents)
             {
                 component.Apply(world, child, _assets);

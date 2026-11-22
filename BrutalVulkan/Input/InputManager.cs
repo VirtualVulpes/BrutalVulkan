@@ -3,7 +3,7 @@ using Brutal.GlfwApi;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
 
-namespace BrutalVulkan;
+namespace BrutalVulkan.Input;
 
 public enum InputMode
 {
@@ -103,10 +103,14 @@ public sealed class InputManager : IDisposable
             case InputMode.CameraControl:
                 Glfw.PInvoke.SetInputMode(_window, (Int32)GlfwInputMode.Cursor, (Int32)GlfwCursorMode.Disabled);
                 io.ConfigFlags |= ImGuiConfigFlags.NoMouse | ImGuiConfigFlags.NoMouseCursorChange;
+                io.AddMousePosEvent(-Single.MaxValue, -Single.MaxValue);
                 break;
             case InputMode.UiInteraction:
                 Glfw.PInvoke.SetInputMode(_window, (Int32)GlfwInputMode.Cursor, (Int32)GlfwCursorMode.Normal);
                 io.ConfigFlags &= ~(ImGuiConfigFlags.NoMouse | ImGuiConfigFlags.NoMouseCursorChange);
+                
+                Glfw.PInvoke.GetCursorPos(_window, out var x, out var y);
+                io.AddMousePosEvent((Single)x, (Single)y);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(inputMode), inputMode, null);

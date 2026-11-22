@@ -1,13 +1,12 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Brutal.GlfwApi;
-using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
 using BrutalVulkan.Camera;
 using BrutalVulkan.ECS;
-using BrutalVulkan.ECS.Components;
 using BrutalVulkan.ECS.Systems;
+using BrutalVulkan.Input;
 using BrutalVulkan.Rendering;
 using BrutalVulkan.Rendering.Meshes;
 using BrutalVulkan.Rendering.Pipelines;
@@ -33,15 +32,17 @@ public sealed class App : IDisposable
     private Renderer _renderer;
 
     private ImGuiManager _imGuiManager;
+    private readonly Inspector _inspector;
+    private readonly SceneView _sceneView;
 
     private CommandBufferManager _cmdManager;
 
-    private World _world;
     private readonly SystemManager _systemManager;
     private readonly CameraSystem _cameraSystem;
-    private CameraController _cameraController;
+    private readonly CameraController _cameraController;
 
     private EntityPicker _picker;
+    private readonly EditorInput _editorInput;
 
     public App()
     {
@@ -62,18 +63,24 @@ public sealed class App : IDisposable
 
         InitVulkan();
 
-        _world = new World();
+        var world = new World();
+        var selection = new SelectionHelper(world, _inputManager);
+        _inspector = new Inspector(world, selection);
+        _sceneView = new SceneView(world, selection);
+
         _systemManager = new SystemManager();
-        var transformSystem = _systemManager.AddSystem(new TransformSystem(_world));
-        _systemManager.AddSystem(new RenderSystem(_world, transformSystem));
-        _systemManager.AddSystem(new RotateSystem(_world));
-        _cameraSystem = _systemManager.AddSystem(new CameraSystem(_world));
-        _systemManager.AddSystem(new NodeSystem(_world, _meshManager));
+        var transformSystem = _systemManager.AddSystem(new TransformSystem(world));
+        _systemManager.AddSystem(new RenderSystem(world, transformSystem));
+        _systemManager.AddSystem(new RotateSystem(world));
+        _cameraSystem = _systemManager.AddSystem(new CameraSystem(world));
+        _systemManager.AddSystem(new NodeSystem(world, _meshManager));
+
+        _editorInput = new EditorInput(_inputManager, world, _systemManager.GetSystem<NodeSystem>(), _picker, selection);
 
         var resolver = new AssetResolver(_meshManager, _pipelineManager, _textureManager);
-        new SceneLoader(resolver).Load(DemoScene.Create(), _world);
+        new SceneLoader(resolver).Load(DemoScene.Create(), world);
 
-        _cameraController = new CameraController(_world, _inputManager, _cameraSystem);
+        _cameraController = new CameraController(world, _inputManager, _cameraSystem);
     }
 
     private static unsafe void OnFramebufferSize(GlfwWindow window, int2 size)
@@ -105,7 +112,7 @@ public sealed class App : IDisposable
             MsaaSamples = _renderer.MsaaSamples
         };
         _imGuiManager =
-            new ImGuiManager(_context.Allocator, _context.Device, _cmdManager, _window, pipelineBuildContext);
+            new ImGuiManager(_context.Allocator, _context.Device, _cmdManager, _window, pipelineBuildContext, _inputManager);
         var pipelineFactory =
             new PipelineFactory(_context.Device, _pipelineManager, pipelineBuildContext, _descriptorManager);
         pipelineFactory.CreateDefaultPipelines();
@@ -123,12 +130,11 @@ public sealed class App : IDisposable
     public void Run()
     {
         _systemManager.Start();
-        
+
         var last = Stopwatch.GetTimestamp();
 
         var renderSystem = _systemManager.GetSystem<RenderSystem>();
-        var nodeSystem = _systemManager.GetSystem<NodeSystem>();
-        
+
         while (!_window.ShouldClose)
         {
             var now = Stopwatch.GetTimestamp();
@@ -140,69 +146,21 @@ public sealed class App : IDisposable
             Glfw.PollEvents();
 
             _systemManager.Update(deltaTime);
-
-            if (_inputManager.IsKeyPressed(GlfwKey.Escape))
+            _cameraController.Update(deltaTime);
+            
+            if (_inputManager.IsKeyPressed(GlfwKey.Escape) && !_inputManager.IsImGuiCapturingKeyboard())
                 _window.ShouldClose = true;
 
-            _cameraController.Update(deltaTime);
-
-            switch (_inputManager.InputMode)
-            {
-                case InputMode.CameraControl when _inputManager.IsKeyPressed(GlfwKey.Tab):
-                    _inputManager.SetInputMode(InputMode.UiInteraction);
-                    break;
-                case InputMode.UiInteraction:
-                {
-                    if (_inputManager.IsImGuiCapturingMouse()) break;
-
-                    if (_inputManager.IsKeyPressed(GlfwKey.Tab))
-                    {
-                        _inputManager.SetInputMode(InputMode.CameraControl);
-                        break;
-                    }
-
-                    var entity = _picker.HoveredEntity;
-                    if (!_world.IsEntityAlive(entity)) break;
-
-                    if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Left))
-                    {
-                        if (!_world.TryRemoveComponent<SelectionComponent>(entity))
-                            _world.AddComponent(entity, new SelectionComponent());
-                    }
-
-                    if (_inputManager.IsMouseButtonPressed(GlfwMouseButton.Right))
-                    {
-                        _world.DestroyEntity(entity);
-                        _picker.Reset();
-                        break;
-                    }
-
-                    if (_world.HasComponent<NodeComponent>(entity))
-                    {
-                        if (_inputManager.IsKeyPressed(GlfwKey.L))
-                            nodeSystem.IncreaseLod(entity);
-                        if (_inputManager.IsKeyPressed(GlfwKey.K))
-                            nodeSystem.DecreaseLod(entity);
-                    }
-                    
-                    break;
-                }
-            }
+            _editorInput.Update();
 
             _imGuiManager.NewFrame(deltaTime);
 
-            CreateUI();
+            _inspector.Draw();
+            _sceneView.Draw();
 
             renderSystem.BuildScene(_cameraSystem.GetActiveCameraData(_renderer.Swapchain.Extent));
             _renderer.DrawFrame(renderSystem.Scene);
         }
-    }
-
-    private void CreateUI()
-    {
-        ImGui.Begin("Hello ImGui"u8);
-        ImGui.Text("Hello, world!"u8);
-        ImGui.End();
     }
 
     private void LoadTextures()

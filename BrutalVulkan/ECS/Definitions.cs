@@ -128,14 +128,6 @@ public sealed record CameraDef : IComponentDef
     }
 }
 
-public sealed record SelectionDef() : IComponentDef
-{
-    public void Apply(World world, Entity entity, AssetResolver assets)
-    {
-        world.AddComponent(entity, new SelectionComponent());
-    }
-}
-
 public sealed record AtmosphereDef(Single Radius) : IComponentDef
 {
     public void Apply(World world, Entity entity, AssetResolver assets)

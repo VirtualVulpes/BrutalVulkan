@@ -97,7 +97,7 @@ public class CameraSystem : ISystem
         if (_active != Entity.Invalid && pool.Has(_active)) return;
 
         if (pool.Count == 0)
-            throw new InvalidOperationException("No active camera in scene");
+            throw new InvalidOperationException("No camera in scene");
 
         _active = pool.GetEntityAt(0);
     }

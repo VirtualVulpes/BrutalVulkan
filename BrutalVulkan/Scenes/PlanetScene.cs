@@ -9,7 +9,7 @@ public static class PlanetScene
     public static SceneDef Create() => new(Name: "Planet Scene",
         Definitions:
         [
-            new EntityDef(Name: "main_camera",
+            new EntityDef(Name: "Main Camera",
                 Components:
                 [
                     new TransformDef
@@ -21,7 +21,7 @@ public static class PlanetScene
                     new PipelineDef("Flat Color"),
                     new CameraDef()
                 ]),
-            new PlanetDef(Name: "planet",
+            new PlanetDef(Name: "Planet",
                 Components:
                 [
                     new TransformDef
@@ -43,7 +43,7 @@ public static class PlanetScene
                 ],
                 Children:
                 [
-                    new EntityDef(Name: "atmosphere",
+                    new EntityDef(Name: "Atmosphere",
                         Components:
                         [
                             TransformDef.Identity(),
@@ -51,7 +51,7 @@ public static class PlanetScene
                             new AtmosphereDef(1.05f)
                         ])
                 ]),
-            new EntityDef(Name: "directional_light",
+            new EntityDef(Name: "Directional Light",
                 Components:
                 [
                     new TransformDef

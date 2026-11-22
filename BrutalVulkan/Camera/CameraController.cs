@@ -3,6 +3,7 @@ using Brutal.Numerics;
 using BrutalVulkan.ECS;
 using BrutalVulkan.ECS.Components;
 using BrutalVulkan.ECS.Systems;
+using BrutalVulkan.Input;
 using BrutalVulkan.Utility;
 
 namespace BrutalVulkan.Camera;

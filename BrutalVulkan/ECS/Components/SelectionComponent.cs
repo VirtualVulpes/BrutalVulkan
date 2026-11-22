@@ -1,3 +1,6 @@
 namespace BrutalVulkan.ECS.Components;
 
-public struct SelectionComponent;
+public record struct SelectionComponent
+{
+    public Int32 Order;
+}
