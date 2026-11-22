@@ -13,5 +13,6 @@ public static class MeshLibrary
         manager.AddMesh("planet", CubeSphere.CreateNoiseMesh(3, 2.0f));
         
         manager.AddMesh("sphere", CubeSphere.CreateMesh(3));
+        manager.AddMesh("sphere_low_res", CubeSphere.CreateMesh(1));
     }
 }

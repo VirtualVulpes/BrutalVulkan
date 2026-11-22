@@ -1,3 +1,5 @@
+using BrutalVulkan.ECS.Components;
+
 namespace BrutalVulkan.ECS;
 
 public sealed partial class World
@@ -30,17 +32,33 @@ public sealed partial class World
         return entity;
     }
 
-    public Boolean DestroyEntity(Entity entity)
+    private void RemoveEntity(Entity entity)
     {
-        if (!IsEntityAlive(entity)) return false;
+        if (!IsEntityAlive(entity)) return;
 
         foreach (var pool in _componentPools.Values)
             pool.Remove(entity);
 
         _generations[(Int32)entity.Id.Value]++;
         _freeIds.Push(entity.Id);
+    }
 
-        return true;
+    public void DestroyEntity(Entity entity)
+    {
+        var toDestroy = new List<Entity>();
+        Collect(entity, toDestroy);
+        foreach (var e in toDestroy)
+            RemoveEntity(e);
+    }
+
+    private void Collect(Entity e, List<Entity> result)
+    {
+        result.Add(e);
+        foreach (var item in Query<ParentComponent>())
+        {
+            if (item.C1.Parent == e)
+                Collect(item.Entity, result);
+        }
     }
 
     public Boolean IsEntityAlive(Entity entity)

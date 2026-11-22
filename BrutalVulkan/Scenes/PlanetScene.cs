@@ -12,29 +12,33 @@ public static class PlanetScene
             new EntityDef(Name: "main_camera",
                 Components:
                 [
-                    new TransformDef(
-                        new float3(0.0f, 0.0f, 5.0f),
-                        floatQuat.Identity,
-                        new float3(0.2f, 0.2f, 0.2f)),
-                    new MeshDef("cube"), new PipelineDef("Flat Color"),
-                    new CameraDef((Single)Constants.WindowWidth / Constants.WindowHeight,
-                        Single.DegreesToRadians(60.0f),
-                        0.1f,
-                        100.0f)
+                    new TransformDef
+                    {
+                        Position = new float3(0.0f, 0.0f, 5.0f),
+                        Scale = new float3(0.2f, 0.2f, 0.2f)
+                    },
+                    new MeshDef("cube"), 
+                    new PipelineDef("Flat Color"),
+                    new CameraDef()
                 ]),
             new PlanetDef(Name: "planet",
                 Components:
                 [
-                    new TransformDef(
-                        new float3(0.0f, 0.0f, 0.0f),
-                        floatQuat.CreateFromAxisAngle(float3.UnitZ,
+                    new TransformDef
+                    {
+                        Rotation = floatQuat.CreateFromAxisAngle(float3.UnitZ,
                             Single.DegreesToRadians(23.44f)), // earth's axial tilt
-                        new float3(1.0f, 1.0f, 1.0f)),
-                    new RotateDef(new float3(0.0f, 0.15f, 0.0f), new float3(0.0f, 0.05f, 0.0f))
+                    },
+                    new RotateDef
+                    {
+                        LocalAngularVelocity = new float3(0.0f, 0.15f, 0.0f),
+                        WorldAngularVelocity = new float3(0.0f, 0.05f, 0.0f)
+                    }
                 ],
                 FaceComponents:
                 [
-                    new TransformDef(float3.Zero, floatQuat.Identity, float3.One), new PipelineDef("Phong Color"),
+                    TransformDef.Identity(), 
+                    new PipelineDef("Phong Color"),
                     new ColorDef(new float3(0.1f, 0.2f, 0.1f))
                 ],
                 Children:
@@ -43,19 +47,28 @@ public static class PlanetScene
                         Components:
                         [
                             TransformDef.Identity(),
-                            new PipelineDef("Atmosphere"), new AtmosphereDef(1.05f)
+                            new PipelineDef("Atmosphere"), 
+                            new AtmosphereDef(1.05f)
                         ])
                 ]),
             new EntityDef(Name: "directional_light",
                 Components:
                 [
-                    new TransformDef(
-                        new float3(-2.0f, 6.5f, -2.0f),
-                        floatQuat.Identity,
-                        new float3(0.05f, 0.05f, 0.05f)),
-                    new MeshDef("sphere"), new PipelineDef("Flat Color"), new ColorDef(new float3(1.0f, 0.95f, 0.85f)),
-                    new LightDef(new float3(1.0f, 0.95f, 0.85f), 0.4f, 0.0f, new float3(-1.0f, -1.0f, 0.0f),
-                        LightType.Directional, 0.0f, 0.0f)
-                ]),
+                    new TransformDef
+                    {
+                        Position = new float3(-2.0f, 6.5f, -2.0f),
+                        Scale = new float3(0.05f, 0.05f, 0.05f)
+                    },
+                    new MeshDef("sphere"), 
+                    new PipelineDef("Flat Color"), 
+                    new ColorDef(new float3(1.0f, 0.95f, 0.85f)),
+                    new LightDef
+                    {
+                        Type = LightType.Directional,
+                        Color = new float3(1.0f, 0.95f, 0.85f),
+                        Intensity = 0.4f,
+                        Direction = new float3(-1.0f, -1.0f, 0.0f)
+                    }
+                ])
         ]);
 }

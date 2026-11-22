@@ -26,13 +26,22 @@ public interface IComponentDef
     void Apply(World world, Entity entity, AssetResolver assets);
 }
 
-public sealed record TransformDef(float3 Position, floatQuat Rotation, float3 Scale) : IComponentDef
+public sealed record TransformDef : IComponentDef
 {
+    public float3 Position = float3.Zero;
+    public floatQuat Rotation = floatQuat.Identity;
+    public float3 Scale = float3.One;
+
     public static TransformDef Identity()
     {
-        return new TransformDef(float3.Zero, floatQuat.Identity, float3.One);
+        return new TransformDef
+        {
+            Position = float3.Zero,
+            Rotation = floatQuat.Identity,
+            Scale = float3.One
+        };
     }
-    
+
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
         world.AddComponent(entity, new TransformComponent { Position = Position, Rotation = Rotation, Scale = Scale });
@@ -63,8 +72,11 @@ public sealed record PipelineDef(String Name) : IComponentDef
     }
 }
 
-public sealed record RotateDef(float3 LocalAngularVelocity, float3 WorldAngularVelocity) : IComponentDef
+public sealed record RotateDef : IComponentDef
 {
+    public float3 LocalAngularVelocity = float3.Zero;
+    public float3 WorldAngularVelocity = float3.Zero;
+
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
         world.AddComponent(entity,
@@ -81,15 +93,16 @@ public sealed record ColorDef(float3 Color) : IComponentDef
     }
 }
 
-public sealed record LightDef(
-    float3 Color,
-    Single Intensity,
-    Single Range,
-    float3 Direction,
-    LightType Type,
-    Single InnerCos,
-    Single OuterCos) : IComponentDef
+public sealed record LightDef : IComponentDef
 {
+    public LightType Type;
+    public float3 Color;
+    public Single Intensity;
+    public Single Range = 0.0f;
+    public float3 Direction = float3.Zero;
+    public Single InnerCos = 0.0f;
+    public Single OuterCos = 0.0f;
+
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
         world.AddComponent(entity,
@@ -101,9 +114,13 @@ public sealed record LightDef(
     }
 }
 
-public sealed record CameraDef(Single AspectRatio, Single Fov, Single ZNear, Single ZFar)
-    : IComponentDef
+public sealed record CameraDef : IComponentDef
 {
+    public Single AspectRatio = (Single)Constants.WindowWidth / Constants.WindowHeight;
+    public Single Fov = Single.DegreesToRadians(60.0f);
+    public Single ZNear = 0.1f;
+    public Single ZFar = 100.0f;
+
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
         world.AddComponent(entity,
@@ -123,6 +140,6 @@ public sealed record AtmosphereDef(Single Radius) : IComponentDef
 {
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
-        world.AddComponent(entity, new AtmosphereComponent{Radius = Radius});
+        world.AddComponent(entity, new AtmosphereComponent { Radius = Radius });
     }
 }
