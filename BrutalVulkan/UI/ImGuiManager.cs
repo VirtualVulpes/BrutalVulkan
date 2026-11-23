@@ -302,6 +302,8 @@ public sealed class ImGuiManager : IDisposable
     {
         ImGui.GetIO().DeltaTime = Single.Max(deltaTime, 1e-5f);
         ImGui.NewFrame();
+        
+        ImString.SharedStorage.Reset();
     }
 
     public void RenderFrame(Int32 frameIndex)

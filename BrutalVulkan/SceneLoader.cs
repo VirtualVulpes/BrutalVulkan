@@ -1,5 +1,7 @@
+using Brutal.Numerics;
 using BrutalVulkan.ECS;
 using BrutalVulkan.ECS.Components;
+using Math = BrutalVulkan.Utility.Math;
 
 namespace BrutalVulkan;
 
@@ -21,8 +23,8 @@ public sealed class SceneLoader
                 case EntityDef entityDef:
                     LoadEntity(entityDef, world);
                     break;
-                case PlanetDef planetDef:
-                    LoadPlanet(planetDef, world);
+                case CelestialEntityDef celestialDef:
+                    LoadCelestialBody(celestialDef, world);
                     break;
             }
         }
@@ -50,31 +52,39 @@ public sealed class SceneLoader
         return entity;
     }
 
-    private void LoadPlanet(PlanetDef planetDef, World world)
+    private void LoadCelestialBody(CelestialEntityDef celestialEntityDef, World world)
     {
         var entity = world.CreateEntity();
         world.AddComponent(entity, new NameComponent
         {
-            Name = planetDef.Name
+            Name = celestialEntityDef.Name
         });
         
-        foreach (var child in planetDef.Children)
+        foreach (var child in celestialEntityDef.Children)
         {
             var c = LoadEntity(child, world);
             world.AddComponent(c, new ParentComponent { Parent = entity });
         }
 
-        foreach (var component in planetDef.Components)
+        foreach (var component in celestialEntityDef.Components)
         {
             component.Apply(world, entity, _assets);
         }
+
+        var pos = world.HasComponent<CelestialBodyComponent>(entity)
+            ? world.GetComponent<CelestialBodyComponent>(entity).PositionRelParent
+            : throw new InvalidOperationException("Celestial body must have a celestial body component");
 
         foreach (var face in Enum.GetValues<Face>())
         {
             var child = world.CreateEntity();
             world.AddComponent(child, new NodeComponent { Face = face, Level = 0, X = 0, Y = 0 });
             world.AddComponent(child, new ParentComponent { Parent = entity });
-            foreach (var component in planetDef.FaceComponents)
+
+            var facePos = CubeSphere.GetNodePosition(face, 0, 0, 0, pos);
+            
+            world.AddComponent(child, new TransformComponent() { Position = Math.ToFloat3(facePos), Rotation = floatQuat.Identity, Scale = float3.One });
+            foreach (var component in celestialEntityDef.FaceComponents)
             {
                 component.Apply(world, child, _assets);
             }

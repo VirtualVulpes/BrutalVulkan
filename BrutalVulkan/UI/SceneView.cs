@@ -80,7 +80,7 @@ public sealed class SceneView
 
         var isActive = entity == _active;
         if (isActive) ImGui.PushStyleColor(ImGuiCol.Header, new float4(0.18f, 0.18f, 0.18f, 1.0f));
-
+        
         var open = ImGui.TreeNodeEx(name, flags);
 
         if (isActive)

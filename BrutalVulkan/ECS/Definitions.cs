@@ -10,8 +10,9 @@ public sealed record EntityDef(String Name, IComponentDef[] Components, EntityDe
     public EntityDef[] Children { get; } = Children ?? [];
 }
 
-public sealed record PlanetDef(
+public sealed record CelestialEntityDef(
     String Name,
+    Double Radius,
     IComponentDef[] Components,
     IComponentDef[] FaceComponents,
     EntityDef[]? Children = null) : ISceneDef
@@ -133,5 +134,22 @@ public sealed record AtmosphereDef(Single Radius) : IComponentDef
     public void Apply(World world, Entity entity, AssetResolver assets)
     {
         world.AddComponent(entity, new AtmosphereComponent { Radius = Radius });
+    }
+}
+
+public sealed record CelestialBodyDef : IComponentDef
+{
+    public double3 PositionRelParent;
+    public double3 VelocityRelParent;
+    public doubleQuat Rotation;
+    
+    public void Apply(World world, Entity entity, AssetResolver assets)
+    {
+        world.AddComponent(entity,
+            new CelestialBodyComponent
+            {
+                PositionRelParent = PositionRelParent, VelocityRelParent = VelocityRelParent,
+                Rotation = Rotation
+            });
     }
 }

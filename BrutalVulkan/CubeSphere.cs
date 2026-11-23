@@ -162,19 +162,21 @@ public static class CubeSphere
         return new Mesh(vertices, indices);
     }
 
-    public static Mesh CreateChunkMesh(Face face, UInt32 level, UInt32 x, UInt32 y)
+    public static Mesh CreateChunkMesh(Face face, UInt32 level, UInt32 x, UInt32 y, double3 body)
     {
         var scale = 1.0 / Double.Pow(2, level);
         
-        var verticesPerSide = 9;
+        const Int32 verticesPerSide = 33;
         var vertices = new Vertex[verticesPerSide * verticesPerSide];
 
-        var squaresPerSide = verticesPerSide - 1;
+        const Int32 squaresPerSide = verticesPerSide - 1;
 
         var indices = new UInt32[squaresPerSide * squaresPerSide * 6];
 
         Int32[] baseIndices = [0, 1, verticesPerSide + 1, verticesPerSide + 1, verticesPerSide, 0];
 
+        var nodeCenter = GetNodePosition(face, level, x, y, body);
+        
         for (var v = 0; v < verticesPerSide; v++)
         {
             var vOffset = (Double)v / (verticesPerSide - 1);
@@ -198,6 +200,8 @@ public static class CubeSphere
                     cubePos.Z * Double.Sqrt(1 - (xSq / 2) - (ySq / 2) + (xSq * ySq / 3))
                 );
 
+                spherePos -= nodeCenter;
+                
                 var floatPos = new float3((Single)spherePos.X, (Single)spherePos.Y, (Single)spherePos.Z);
 
                 vertices[u + v * verticesPerSide] = new Vertex
@@ -222,5 +226,23 @@ public static class CubeSphere
         }
 
         return new Mesh(vertices, indices);
+    }
+
+    public static double3 GetNodePosition(Face face, UInt32 level, UInt32 x, UInt32 y, double3 body)
+    {
+        var scale = 1.0 / Double.Pow(2, level);
+        var cubePos = Origins[(Int32)face] + 2 * (x + 0.5) * scale * UDirections[(Int32)face] + 2 * (y + 0.5) * scale * VDirections[(Int32)face];
+
+        var xSq = cubePos.X * cubePos.X;
+        var ySq = cubePos.Y * cubePos.Y;
+        var zSq = cubePos.Z * cubePos.Z;
+        
+        var spherePos = new double3(
+            cubePos.X * Double.Sqrt(1 - (ySq / 2) - (zSq / 2) + (ySq * zSq / 3)),
+            cubePos.Y * Double.Sqrt(1 - (zSq / 2) - (xSq / 2) + (zSq * xSq / 3)),
+            cubePos.Z * Double.Sqrt(1 - (xSq / 2) - (ySq / 2) + (xSq * ySq / 3))
+        );
+        
+        return double3.Normalize(spherePos);
     }
 }

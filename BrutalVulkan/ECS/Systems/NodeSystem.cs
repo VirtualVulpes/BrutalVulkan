@@ -1,5 +1,7 @@
+using Brutal.Numerics;
 using BrutalVulkan.ECS.Components;
 using BrutalVulkan.Rendering.Meshes;
+using Math = BrutalVulkan.Utility.Math;
 
 namespace BrutalVulkan.ECS.Systems;
 
@@ -15,8 +17,7 @@ public sealed class NodeSystem : ISystem
 
     private static UInt64 Key(NodeComponent node) => ((UInt64)node.Face << 61) | ((UInt64)node.Level << 56) | ((UInt64)node.X << 28) | ((UInt64)node.Y << 0); 
     
-    public NodeSystem(World world, MeshManager meshManager)
-    {
+    public NodeSystem(World world, MeshManager meshManager) {
         _world = world;
         _meshManager = meshManager;
     }
@@ -27,9 +28,12 @@ public sealed class NodeSystem : ISystem
 
         var node = _world.GetComponent<NodeComponent>(e);
 
+        var body = _world.GetComponent<ParentComponent>(e).Parent;
+        var bodyPos = _world.GetComponent<CelestialBodyComponent>(body).PositionRelParent;
+        
         if (!_meshIds.ContainsKey(Key(node)))
         {
-            var meshId = _meshManager.AddMesh(CubeSphere.CreateChunkMesh(node.Face, node.Level, node.X, node.Y));
+            var meshId = _meshManager.AddMesh(CubeSphere.CreateChunkMesh(node.Face, node.Level, node.X, node.Y, bodyPos));
             _meshIds.Add(Key(node), meshId);
         }
 
@@ -66,6 +70,9 @@ public sealed class NodeSystem : ISystem
                     X = node.X * 2 + x,
                     Y = node.Y * 2 + y
                 };
+
+                var pos = CubeSphere.GetNodePosition(childNode.Face, childNode.Level, childNode.X, childNode.Y, double3.Zero);
+                transform.Position = Math.ToFloat3(pos);
                 
                 _world.AddComponent(child, childNode);
                 _world.AddComponent(child, transform);
