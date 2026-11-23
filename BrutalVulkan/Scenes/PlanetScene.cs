@@ -28,7 +28,8 @@ public static class PlanetScene
                     {
                         PositionRelParent = new double3(5.0f, 0.0f, 0.0f), VelocityRelParent = double3.Zero,
                         Rotation = doubleQuat.Identity
-                    }
+                    },
+                    TransformDef.Identity()
                 ],
                 FaceComponents:
                 [
