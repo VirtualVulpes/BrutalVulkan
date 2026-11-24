@@ -14,8 +14,4 @@
         <ProjectReference Include="..\Armature.Input\Armature.Input.csproj"/>
         <ProjectReference Include="..\Armature.Scene\Armature.Scene.csproj"/>
     </ItemGroup>
-
-    <ItemGroup>
-        <None Include="shaders\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="shaders\editor"/>
-    </ItemGroup>
 </Project>

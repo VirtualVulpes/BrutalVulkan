@@ -14,9 +14,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Armature.Core\Armature.Core.csproj"/>
-        <ProjectReference Include="..\Armature.Input\Armature.Input.csproj"/>
-        <ProjectReference Include="..\Armature.Rendering\Armature.Rendering.csproj"/>
+        <ProjectReference Include="..\Armature.Core\Armature.Core.csproj" />
+        <ProjectReference Include="..\Armature.Input\Armature.Input.csproj" />
+        <ProjectReference Include="..\Armature.Rendering\Armature.Rendering.csproj" />
     </ItemGroup>
 
     <ItemGroup>
