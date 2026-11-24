@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="Brutal.Numerics">
+        <HintPath>..\..\..\..\home\sjfochs\.nuget\packages\ahwoo.brutal.numerics\2026.10.2\lib\net10.0\Brutal.Numerics.dll</HintPath>
+      </Reference>
+      <Reference Include="Brutal.Vulkan.Vma">
+        <HintPath>..\..\..\..\home\sjfochs\.nuget\packages\ahwoo.brutal.vulkan.vma\2026.10.3\lib\net10.0\Brutal.Vulkan.Vma.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Armature.Core\Armature.Core.csproj" />
+      <ProjectReference Include="..\Armature.Vulkan\Armature.Vulkan.csproj" />
+    </ItemGroup>
+
+</Project>

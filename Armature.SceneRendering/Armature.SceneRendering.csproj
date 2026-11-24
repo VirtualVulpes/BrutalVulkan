@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Armature.Core\Armature.Core.csproj"/>
+        <ProjectReference Include="..\Armature.Rendering\Armature.Rendering.csproj"/>
+        <ProjectReference Include="..\Armature.Vulkan\Armature.Vulkan.csproj"/>
+        <ProjectReference Include="..\Armature.Scene\Armature.Scene.csproj"/>
+    </ItemGroup>
+
+</Project>
