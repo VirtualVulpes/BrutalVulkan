@@ -7,13 +7,7 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Ahwoo.BRUTAL.Core" Version="2026.10.4"/>
-    </ItemGroup>
-    <ItemGroup>
-        <Reference Include="Brutal.Glfw">
-          <HintPath>..\..\..\..\home\sjfochs\.nuget\packages\ahwoo.brutal.glfw\2026.10.5\lib\net10.0\Brutal.Glfw.dll</HintPath>
-        </Reference>
-        <Reference Include="Brutal.Numerics">
-            <HintPath>..\..\..\..\home\sjfochs\.nuget\packages\ahwoo.brutal.numerics\2026.10.2\lib\net10.0\Brutal.Numerics.dll</HintPath>
-        </Reference>
+        <PackageReference Include="Ahwoo.BRUTAL.Numerics" Version="2026.10.2"/>
+        <PackageReference Include="Ahwoo.BRUTAL.Glfw" Version="2026.10.4"/>
     </ItemGroup>
 </Project>
