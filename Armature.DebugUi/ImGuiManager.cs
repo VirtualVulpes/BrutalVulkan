@@ -2,7 +2,6 @@ using Armature.Core;
 using Armature.Input;
 using Armature.Rendering;
 using Armature.Rendering.Pipelines;
-using Armature.SceneRendering;
 using Armature.Vulkan;
 using Brutal;
 using Brutal.GlfwApi;
@@ -12,10 +11,8 @@ using Brutal.ShaderCApi;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
-using BrutalVulkan.Rendering;
-using BrutalVulkan.Utility;
 
-namespace BrutalVulkan.UI;
+namespace Armature.DebugUi;
 
 public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
 {
@@ -27,10 +24,10 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
     }
 
     private VkSampler _fontSampler;
-    private readonly BufferEx[] _vertexBuffers = new BufferEx[Constants.MaxFramesInFlight];
-    private readonly BufferEx[] _indexBuffers = new BufferEx[Constants.MaxFramesInFlight];
-    private readonly int[] _vertexCapacities = new int[Constants.MaxFramesInFlight];
-    private readonly int[] _indexCapacities = new int[Constants.MaxFramesInFlight];
+    private readonly BufferEx[] _vertexBuffers = new BufferEx[RenderConstants.MaxFramesInFlight];
+    private readonly BufferEx[] _indexBuffers = new BufferEx[RenderConstants.MaxFramesInFlight];
+    private readonly int[] _vertexCapacities = new int[RenderConstants.MaxFramesInFlight];
+    private readonly int[] _indexCapacities = new int[RenderConstants.MaxFramesInFlight];
     private const int VertexHeadroom = 5000;
     private const int IndexHeadroom = 10000;
 
@@ -67,11 +64,11 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
         _input.InputModeChanged += OnInputModeChanged;
         _input.Ui = this;
 
-        _context = ImGui.CreateContext();
+        _context = Brutal.ImGuiApi.ImGui.CreateContext();
         if (_context.IsNull())
             throw new InvalidOperationException("Failed to create ImGui context.");
 
-        var io = ImGui.GetIO();
+        var io = Brutal.ImGuiApi.ImGui.GetIO();
         io.IniFilename = null; // stop ImGui.ini write
         UpdateDisplaySize();
 
@@ -92,43 +89,43 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
 
     private void SetStyle()
     {
-        ImGui.StyleColorsDark();
+        Brutal.ImGuiApi.ImGui.StyleColorsDark();
 
-        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, ImGui.GetStyleColorVec4(ImGuiCol.TitleBg));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.TitleBgActive, Brutal.ImGuiApi.ImGui.GetStyleColorVec4(ImGuiCol.TitleBg));
 
-        ImGui.PushStyleColor(ImGuiCol.Tab, new float4(0.08f, 0.08f, 0.08f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.TabSelected, new float4(0.12f, 0.12f, 0.12f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.TabHovered, new float4(0.16f, 0.16f, 0.16f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.Tab, new float4(0.08f, 0.08f, 0.08f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.TabSelected, new float4(0.12f, 0.12f, 0.12f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.TabHovered, new float4(0.16f, 0.16f, 0.16f, 1.0f));
 
-        ImGui.PushStyleColor(ImGuiCol.FrameBg, new float4(0.035f, 0.035f, 0.035f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new float4(0.07f, 0.07f, 0.07f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new float4(0.10f, 0.10f, 0.10f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.FrameBg, new float4(0.035f, 0.035f, 0.035f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new float4(0.07f, 0.07f, 0.07f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new float4(0.10f, 0.10f, 0.10f, 1.0f));
 
-        ImGui.PushStyleColor(ImGuiCol.WindowBg, new float4(0.02f, 0.02f, 0.02f, 0.92f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.WindowBg, new float4(0.02f, 0.02f, 0.02f, 0.92f));
 
-        ImGui.PushStyleColor(ImGuiCol.Header, new float4(0.06f, 0.06f, 0.06f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.HeaderActive, new float4(0.10f, 0.10f, 0.10f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.HeaderHovered, new float4(0.13f, 0.13f, 0.13f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.Header, new float4(0.06f, 0.06f, 0.06f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.HeaderActive, new float4(0.10f, 0.10f, 0.10f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.HeaderHovered, new float4(0.13f, 0.13f, 0.13f, 1.0f));
 
-        ImGui.PushStyleColor(ImGuiCol.ResizeGrip, new float4(0.12f, 0.12f, 0.12f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.ResizeGripActive, new float4(0.16f, 0.16f, 0.16f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.ResizeGripHovered, new float4(0.20f, 0.20f, 0.20f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.ResizeGrip, new float4(0.12f, 0.12f, 0.12f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.ResizeGripActive, new float4(0.16f, 0.16f, 0.16f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.ResizeGripHovered, new float4(0.20f, 0.20f, 0.20f, 1.0f));
 
-        ImGui.PushStyleColor(ImGuiCol.Button, new float4(0.05f, 0.05f, 0.05f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new float4(0.08f, 0.08f, 0.08f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new float4(0.10f, 0.10f, 0.10f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.Button, new float4(0.05f, 0.05f, 0.05f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.ButtonActive, new float4(0.08f, 0.08f, 0.08f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new float4(0.10f, 0.10f, 0.10f, 1.0f));
 
-        ImGui.PushStyleColor(ImGuiCol.Separator, new float4(0.12f, 0.12f, 0.12f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.SeparatorActive, new float4(0.16f, 0.16f, 0.16f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.SeparatorHovered, new float4(0.20f, 0.20f, 0.20f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.Separator, new float4(0.12f, 0.12f, 0.12f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.SeparatorActive, new float4(0.16f, 0.16f, 0.16f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.SeparatorHovered, new float4(0.20f, 0.20f, 0.20f, 1.0f));
 
-        ImGui.PushStyleColor(ImGuiCol.SliderGrab, new float4(0.07f, 0.07f, 0.07f, 1.0f));
-        ImGui.PushStyleColor(ImGuiCol.SliderGrabActive, new float4(0.12f, 0.12f, 0.12f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.SliderGrab, new float4(0.07f, 0.07f, 0.07f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.SliderGrabActive, new float4(0.12f, 0.12f, 0.12f, 1.0f));
 
 
-        ImGui.PushStyleColor(ImGuiCol.MenuBarBg, new float4(0.12f, 0.12f, 0.12f, 1.0f));
+        Brutal.ImGuiApi.ImGui.PushStyleColor(ImGuiCol.MenuBarBg, new float4(0.12f, 0.12f, 0.12f, 1.0f));
 
-        var style = ImGui.GetStyle();
+        var style = Brutal.ImGuiApi.ImGui.GetStyle();
         style.FontSizeBase = 16.0f;
         style.WindowBorderSize = 0.0f;
         style.FrameRounding = 4.0f;
@@ -184,7 +181,7 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
             MinLod = 0.0f,
             MaxLod = 0.0f
         };
-        _fontSampler = _device.CreateSampler(samplerInfo, null);
+        _fontSampler = VkDeviceExtensions.CreateSampler(_device, samplerInfo, null);
     }
 
     private unsafe void CreateImGuiPipeline(PipelineBuildContext context)
@@ -307,17 +304,17 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
 
     public void NewFrame(float deltaTime)
     {
-        ImGui.GetIO().DeltaTime = float.Max(deltaTime, 1e-5f);
-        ImGui.NewFrame();
+        Brutal.ImGuiApi.ImGui.GetIO().DeltaTime = float.Max(deltaTime, 1e-5f);
+        Brutal.ImGuiApi.ImGui.NewFrame();
 
         ImString.SharedStorage.Reset();
     }
 
     public void RenderFrame(int frameIndex)
     {
-        ImGui.Render();
+        Brutal.ImGuiApi.ImGui.Render();
 
-        var drawData = ImGui.GetDrawData();
+        var drawData = Brutal.ImGuiApi.ImGui.GetDrawData();
         if (!drawData.Valid) return;
 
         if (drawData.Textures.IsNotNull())
@@ -346,7 +343,7 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
                     UploadTexture(texture, VkImageLayout.ShaderReadOnlyOptimal);
                 break;
             case ImTextureStatus.WantDestroy:
-                if (texture.UnusedFrames >= Constants.MaxFramesInFlight)
+                if (texture.UnusedFrames >= RenderConstants.MaxFramesInFlight)
                     DestroyTexture(texture);
                 break;
         }
@@ -401,7 +398,7 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
             ImageInfo = &imageInfo,
             DstBinding = 0
         };
-        _device.UpdateDescriptorSets([write], []);
+        VkDeviceExtensions.UpdateDescriptorSets(_device, [write], []);
 
         _textures[texture.UniqueID] = new TextureBackend
         {
@@ -465,7 +462,7 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
 
     private unsafe void UpdateBuffers(int frameIndex)
     {
-        var drawData = ImGui.GetDrawData();
+        var drawData = Brutal.ImGuiApi.ImGui.GetDrawData();
         if (!drawData.Valid || drawData.CmdListsCount == 0) return;
 
         if (drawData.TotalVtxCount > _vertexCapacities[frameIndex])
@@ -540,18 +537,18 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
 
         var framebufferSize = _window.FramebufferSize;
 
-        var io = ImGui.GetIO();
+        var io = Brutal.ImGuiApi.ImGui.GetIO();
         io.DisplaySize = new float2(framebufferSize.X, framebufferSize.Y);
     }
 
     private void OnMouseButton(GlfwWindow window, GlfwMouseButton button, GlfwButtonAction action, GlfwModifier mods)
     {
-        ImGui.GetIO().AddMouseButtonEvent((int)button, action == GlfwButtonAction.Press);
+        Brutal.ImGuiApi.ImGui.GetIO().AddMouseButtonEvent((int)button, action == GlfwButtonAction.Press);
     }
 
     private void OnKey(GlfwWindow window, GlfwKey key, int scancode, GlfwKeyAction action, GlfwModifier mods)
     {
-        var io = ImGui.GetIO();
+        var io = Brutal.ImGuiApi.ImGui.GetIO();
 
         io.AddKeyEvent(ImGuiKey.Mod_Ctrl, mods.HasFlag(GlfwModifier.Control));
         io.AddKeyEvent(ImGuiKey.Mod_Shift, mods.HasFlag(GlfwModifier.Shift));
@@ -570,19 +567,19 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
             if (imKey == ImGuiKey.Tab && !io.WantTextInput) return;
         }
 
-        ImGui.GetIO().AddKeyEvent(imKey, pressed);
+        Brutal.ImGuiApi.ImGui.GetIO().AddKeyEvent(imKey, pressed);
     }
 
     private void OnChar(GlfwWindow window, uint codepoint)
     {
         if (_input.InputMode != InputMode.UiInteraction) return;
-        ImGui.GetIO().AddInputCharacter(codepoint);
+        Brutal.ImGuiApi.ImGui.GetIO().AddInputCharacter(codepoint);
     }
 
     private void OnCursorPos(GlfwWindow window, double2 pos)
     {
         var scale = window.ContentScale;
-        ImGui.GetIO().AddMousePosEvent((float)pos.X * scale.X, (float)pos.Y * scale.Y);
+        Brutal.ImGuiApi.ImGui.GetIO().AddMousePosEvent((float)pos.X * scale.X, (float)pos.Y * scale.Y);
     }
 
     public void Dispose()
@@ -595,7 +592,7 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
         _textures.Clear();
 
         if (_fontSampler.IsNotNull())
-            _device.DestroySampler(_fontSampler, null);
+            VkDeviceExtensions.DestroySampler(_device, _fontSampler, null);
 
         for (var i = 0; i < _vertexBuffers.Length; i++)
         {
@@ -605,8 +602,8 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
                 _indexBuffers[i].Dispose();
         }
 
-        _device.DestroyDescriptorSetLayout(DescriptorSetLayout, null);
-        _device.DestroyDescriptorPool(_descriptorPool, null);
+        VkDeviceExtensions.DestroyDescriptorSetLayout(_device, DescriptorSetLayout, null);
+        VkDeviceExtensions.DestroyDescriptorPool(_device, _descriptorPool, null);
 
         Pipeline.Dispose();
 
@@ -618,7 +615,7 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
         _window.OnMouseButton -= OnMouseButton;
         _window.OnCursorPos -= OnCursorPos;
 
-        ImGui.DestroyContext(_context);
+        Brutal.ImGuiApi.ImGui.DestroyContext(_context);
     }
 
     public void OnResize(RenderTargets targets)
@@ -626,14 +623,14 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
         UpdateDisplaySize();
     }
 
-    public void OnPrepare(RenderContext ctx)
+    public void OnPrepare(ref RenderContext ctx)
     {
         RenderFrame(ctx.FrameIndex);
     }
 
     private void OnInputModeChanged(InputMode mode, double2 pos)
     {
-        var io = ImGui.GetIO();
+        var io = Brutal.ImGuiApi.ImGui.GetIO();
         if (mode == InputMode.CameraControl)
         {
             io.ConfigFlags |= ImGuiConfigFlags.NoMouse | ImGuiConfigFlags.NoMouseCursorChange;
@@ -646,6 +643,6 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
         }
     }
 
-    public bool WantsKeyboard => ImGui.GetIO().WantCaptureKeyboard;
-    public bool WantsMouse => ImGui.GetIO().WantCaptureMouse;
+    public bool WantsKeyboard => Brutal.ImGuiApi.ImGui.GetIO().WantCaptureKeyboard;
+    public bool WantsMouse => Brutal.ImGuiApi.ImGui.GetIO().WantCaptureMouse;
 }

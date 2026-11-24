@@ -4,9 +4,8 @@ using Armature.Scene;
 using Armature.Scene.Components;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
-using World = Armature.Scene.World;
 
-namespace Armature.SceneRendering;
+namespace Armature.Editor;
 
 public class CameraController
 {

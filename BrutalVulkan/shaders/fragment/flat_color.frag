@@ -4,8 +4,7 @@ layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform PushConstants 
 {
-    layout(offset = 128) vec3 cameraPos;
-    vec3 color;
+    layout(offset = 128) vec3 color;
 } pc;
 
 void main()

@@ -1,10 +1,8 @@
 using System.Runtime.InteropServices;
-using Armature.Rendering;
 using Brutal.GltfApi;
 using Brutal.Numerics;
-using Mesh = Armature.Rendering.Mesh;
 
-namespace BrutalVulkan;
+namespace Armature.Rendering;
 
 public static class ModelLoader
 {

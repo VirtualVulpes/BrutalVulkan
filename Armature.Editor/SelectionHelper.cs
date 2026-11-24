@@ -2,7 +2,7 @@ using Armature.Scene;
 using Armature.Scene.Components;
 using CommunityToolkit.HighPerformance;
 
-namespace BrutalVulkan.UI;
+namespace Armature.Editor;
 
 public sealed class SelectionHelper
 {

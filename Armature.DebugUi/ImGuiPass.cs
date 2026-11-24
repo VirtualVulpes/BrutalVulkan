@@ -1,9 +1,11 @@
+using Armature.Rendering;
+using Armature.Rendering.Passes;
 using Brutal;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 
-namespace Armature.Rendering.Passes;
+namespace Armature.DebugUi;
 
 public class ImGuiPass : IRenderPass
 {
@@ -35,7 +37,7 @@ public class ImGuiPass : IRenderPass
             }
         );
 
-        var drawData = ImGui.GetDrawData();
+        var drawData = Brutal.ImGuiApi.ImGui.GetDrawData();
         if (!drawData.Valid || drawData.CmdListsCount == 0)
         {
             ctx.CommandBuffer.EndRendering();

@@ -1,6 +1,4 @@
-using Armature.Rendering;
-
-namespace BrutalVulkan.Rendering.Meshes;
+namespace Armature.Rendering;
 
 public static class MeshLibrary
 {

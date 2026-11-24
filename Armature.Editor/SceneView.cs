@@ -5,7 +5,7 @@ using Brutal.GlfwApi;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
 
-namespace BrutalVulkan.UI;
+namespace Armature.Editor;
 
 public sealed class SceneView
 {
