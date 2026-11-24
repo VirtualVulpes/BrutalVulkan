@@ -55,6 +55,8 @@ public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
     public ImGuiManager(VmaAllocator allocator, DeviceEx device, CommandBufferManager cmdManager,
         GlfwWindow window, PipelineBuildContext context, InputManager input)
     {
+        ShaderLibrary.AddRoot(Path.Combine(AppContext.BaseDirectory, "shaders", "debug_ui"));
+        
         _allocator = allocator;
         _device = device;
         _cmdManager = cmdManager;

@@ -16,7 +16,7 @@ public static class ShaderCreation
 
         foreach (var shader in shaders)
         {
-            var name = LoadShader(shader);
+            var name = ShaderLibrary.Load(shader);
             using var spirv = compiler.Compile(name, shader.Kind, name, "main"u8, options);
             var module = ShaderModuleExtensions.FromSpirv(
                 device,
@@ -45,7 +45,7 @@ public static class ShaderCreation
         using var compiler = ShaderC.CreateCompiler();
         using var options = ShaderC.CreateCompilerOptions();
         
-        var name = LoadShader(shader);
+        var name = ShaderLibrary.Load(shader);
         using var spirv = compiler.Compile(name, shader.Kind, name, "main"u8, options);
         var module = ShaderModuleExtensions.FromSpirv(
             device,
@@ -64,19 +64,5 @@ public static class ShaderCreation
             default:
                 throw new ArgumentOutOfRangeException($"Unsupported ShaderKind: {shader.Kind}");
         }
-    }
-
-    private static Byte[] LoadShader(ShaderCreateInfo shader)
-    {
-        var folder = shader.Kind switch
-        {
-            ShaderKind.VertexShader => "vertex",
-            ShaderKind.FragmentShader => "fragment",
-            ShaderKind.ComputeShader => "compute",
-            _ => throw new ArgumentOutOfRangeException($"Unsupported ShaderKind: {shader.Kind}")
-        };
-        var path = Path.Combine("shaders", folder, shader.Name);
-
-        return File.ReadAllBytes(path);
     }
 }

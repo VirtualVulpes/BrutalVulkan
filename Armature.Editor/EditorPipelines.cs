@@ -11,6 +11,8 @@ public static class EditorPipelines
 {
     public static void Register(DeviceEx device, PipelineManager pipelines, PipelineBuildContext ctx, CoreDescriptors core, EditorDescriptors editor)
     {
+        ShaderLibrary.AddRoot(Path.Combine(AppContext.BaseDirectory, "shaders", "editor"));
+
         var m = new MeshPipelineBuilder(device, pipelines);
         var c = new ComputePipelineBuilder(device, pipelines);
 

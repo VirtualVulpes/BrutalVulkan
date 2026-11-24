@@ -14,8 +14,11 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Armature.Core\Armature.Core.csproj" />
-      <ProjectReference Include="..\Armature.Vulkan\Armature.Vulkan.csproj" />
+        <ProjectReference Include="..\Armature.Core\Armature.Core.csproj"/>
+        <ProjectReference Include="..\Armature.Vulkan\Armature.Vulkan.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <None Include="shaders\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="shaders\rendering"/>
+    </ItemGroup>
 </Project>

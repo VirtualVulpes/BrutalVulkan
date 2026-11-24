@@ -37,7 +37,7 @@ public sealed class App : IDisposable
     private ImGuiManager _imGuiManager;
     private readonly Inspector _inspector;
     private readonly SceneView _sceneView;
-    
+
     private CommandBufferManager _cmdManager;
 
     private readonly SystemManager _systemManager;
@@ -51,8 +51,8 @@ public sealed class App : IDisposable
     private EditorDescriptors _editorDescriptors;
     private EditorRenderFeature _editorFeatures;
     private EditorInput _editorInput;
-    
-    
+
+
     public App()
     {
         _window = Glfw.CreateWindow(
@@ -68,9 +68,9 @@ public sealed class App : IDisposable
         _window.OnFramebufferSize += OnFramebufferSize;
 
         _inputManager = new InputManager(_window);
-        
+
         _world = new World();
-        
+
         _selection = new SelectionHelper(_world);
         _inspector = new Inspector(_world, _selection);
         _sceneView = new SceneView(_world, _selection, _inputManager);
@@ -79,7 +79,7 @@ public sealed class App : IDisposable
         _systemManager.AddSystem(new RenderSystem(_world));
         _systemManager.AddSystem(new RotateSystem(_world));
         _camera = _systemManager.AddSystem(new CameraSystem(_world));
-        
+
         InitVulkan();
 
 
@@ -125,7 +125,8 @@ public sealed class App : IDisposable
             new ImGuiManager(_context.Allocator, _context.Device, _cmdManager, _window, pipelineBuildContext,
                 _inputManager);
         CorePipelines.Register(_context.Device, _pipelineManager, pipelineBuildContext, _coreDescriptors);
-        EditorPipelines.Register(_context.Device, _pipelineManager, pipelineBuildContext, _coreDescriptors, _editorDescriptors);
+        EditorPipelines.Register(_context.Device, _pipelineManager, pipelineBuildContext, _coreDescriptors,
+            _editorDescriptors);
 
         _meshManager = new MeshManager(_context.Allocator);
         MeshLibrary.RegisterDefaults(_meshManager);
@@ -135,7 +136,7 @@ public sealed class App : IDisposable
 
         _sceneRenderer = new SceneRenderer(_pipelineManager, _meshManager, _context, _coreDescriptors);
         _renderer.AddListener(_sceneRenderer);
-        
+
         _renderer.AddListener(_imGuiManager);
 
         _renderer.AddPass(new OpaquePass(), RenderPhase.Scene);
@@ -178,7 +179,9 @@ public sealed class App : IDisposable
             _inspector.Draw();
             _sceneView.Draw();
 
-            var camera = _camera.GetActiveCameraData(new float2(_renderer.Swapchain.Extent.Width, _renderer.Swapchain.Extent.Height));
+            var camera =
+                _camera.GetActiveCameraData(new float2(_renderer.Swapchain.Extent.Width,
+                    _renderer.Swapchain.Extent.Height));
             float4x4.Invert(camera.View, out var invView);
             float4x4.Invert(camera.Proj, out var invProj);
             var invViewport = new float2(1.0f / camera.ViewportSize.X, 1.0f / camera.ViewportSize.Y);
@@ -193,7 +196,7 @@ public sealed class App : IDisposable
                 InvViewport = invViewport
             };
             renderSystem.BuildScene(gpuCamera);
-            
+
             _sceneRenderer.Submit(renderSystem.Scene);
             _renderer.DrawFrame(_sceneRenderer.Items, _sceneRenderer.ViewProj);
         }
@@ -235,7 +238,7 @@ public sealed class App : IDisposable
 
         _editorFeatures.Dispose();
         _editorDescriptors.Dispose();
-        
+
         _sceneRenderer.Dispose();
         _renderer.Dispose();
 

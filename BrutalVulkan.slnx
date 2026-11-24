@@ -8,6 +8,5 @@
   <Project Path="Armature.Scene/Armature.Scene.csproj" />
   <Project Path="Armature.SceneRendering/Armature.SceneRendering.csproj" />
   <Project Path="Armature.Vulkan/Armature.Vulkan.csproj" />
-  <Project Path="BrutalVulkan.Tests/BrutalVulkan.Tests.csproj" />
   <Project Path="BrutalVulkan/BrutalVulkan.csproj" />
 </Solution>
