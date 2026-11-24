@@ -1,36 +1,38 @@
 using System.Diagnostics;
+using Armature.Vulkan;
 using Brutal;
 using Brutal.VulkanApi;
-using BrutalVulkan.Rendering.Pipelines;
 using Brutal.VulkanApi.Abstractions;
+using BrutalVulkan.Editor;
 
 namespace BrutalVulkan.Rendering.Passes.Compute;
 
-public class JumpFloodPass : IRenderPass, ITargetConsumer
+public class JumpFloodPass : IRenderPass, IEditorTargetConsumer
 {
     private readonly Pipeline _pipeline;
-    private readonly DescriptorManager _descriptors;
+    private EditorDescriptors _editor;
     private readonly VkDescriptorSet _bToASet;
     private readonly VkDescriptorSet _aToBSet;
+    private EditorTargets _targets;
 
     private const UInt32 StartJump = 2;
 
-    public JumpFloodPass(Pipeline pipeline, DescriptorManager descriptors)
+    public JumpFloodPass(Pipeline pipeline, EditorDescriptors editor)
     {
         Debug.Assert((UInt32.Log2(StartJump) + 1) % 2 == 0,
             "Jump flood needs an even pass count so the result ends in SeedA");
-        
+
         _pipeline = pipeline;
-        _descriptors = descriptors;
-        _aToBSet = descriptors.AllocateSeedAToBDescriptorSet();
-        _bToASet = descriptors.AllocateSeedBToADescriptorSet();
+        _editor = editor;
+        _aToBSet = editor.AllocateSeedDescriptorSet();
+        _bToASet = editor.AllocateSeedDescriptorSet();
     }
 
     public void Record(in RenderContext context, ReadOnlySpan<RenderItem> _)
     {
-        context.Targets.SeedA.Image.TransitionTo(context.CommandBuffer, VkImageLayout.General,
+        _targets.SeedA.Image.TransitionTo(context.CommandBuffer, VkImageLayout.General,
             VkPipelineStageFlags.ComputeShaderBit, VkAccessFlags.ShaderReadBit | VkAccessFlags.ShaderWriteBit);
-        context.Targets.SeedB.Image.TransitionTo(context.CommandBuffer, VkImageLayout.General,
+        _targets.SeedB.Image.TransitionTo(context.CommandBuffer, VkImageLayout.General,
             VkPipelineStageFlags.ComputeShaderBit, VkAccessFlags.ShaderReadBit | VkAccessFlags.ShaderWriteBit);
 
         context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Compute, _pipeline.Handle);
@@ -81,12 +83,12 @@ public class JumpFloodPass : IRenderPass, ITargetConsumer
         }
     }
 
-
-    public void OnTargetsRecreated(RenderTargets targets)
+    public void OnTargetsRecreated(RenderTargets core, EditorTargets editor)
     {
-        _descriptors.UpdateSeedDescriptor(_aToBSet,
-            targets.SeedA.View.VkImageView, targets.SeedB.View.VkImageView);
-        _descriptors.UpdateSeedDescriptor(_bToASet,
-            targets.SeedB.View.VkImageView, targets.SeedA.View.VkImageView);
+        _targets = editor;   
+        _editor.UpdateSeedDescriptor(_aToBSet,
+            editor.SeedA.View.VkImageView, editor.SeedB.View.VkImageView);
+        _editor.UpdateSeedDescriptor(_bToASet,
+            editor.SeedB.View.VkImageView, editor.SeedA.View.VkImageView);
     }
 }

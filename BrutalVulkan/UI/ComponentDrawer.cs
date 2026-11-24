@@ -1,5 +1,5 @@
+using Armature.Scene;
 using Brutal.ImGuiApi;
-using BrutalVulkan.ECS;
 
 namespace BrutalVulkan.UI;
 
@@ -20,13 +20,12 @@ public sealed class ComponentDrawer<T> : IComponentDrawer where T : struct
     {
         if (!world.HasComponent<T>(entity)) return;
 
+        ImGui.PushID(typeof(T).Name);
         if (ImGui.CollapsingHeader(_name, ImGuiTreeNodeFlags.DefaultOpen))
         {
             ref var component = ref world.GetComponent<T>(entity);
-            
-            ImGui.PushID(typeof(T).Name);
             _draw(ref component);
-            ImGui.PopID();
         }
+        ImGui.PopID();
     }
 }

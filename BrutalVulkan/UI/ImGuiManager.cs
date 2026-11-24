@@ -1,3 +1,6 @@
+using Armature.Core;
+using Armature.Input;
+using Armature.Vulkan;
 using Brutal;
 using Brutal.GlfwApi;
 using Brutal.ImGuiApi;
@@ -6,14 +9,13 @@ using Brutal.ShaderCApi;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
-using BrutalVulkan.Input;
 using BrutalVulkan.Rendering;
 using BrutalVulkan.Rendering.Pipelines;
 using BrutalVulkan.Utility;
 
 namespace BrutalVulkan.UI;
 
-public sealed class ImGuiManager : IDisposable
+public sealed class ImGuiManager : IDisposable, IFrameListener, IUiCaptureState
 {
     private sealed class TextureBackend
     {
@@ -25,12 +27,12 @@ public sealed class ImGuiManager : IDisposable
     private VkSampler _fontSampler;
     private readonly BufferEx[] _vertexBuffers = new BufferEx[Constants.MaxFramesInFlight];
     private readonly BufferEx[] _indexBuffers = new BufferEx[Constants.MaxFramesInFlight];
-    private readonly Int32[] _vertexCapacities = new Int32[Constants.MaxFramesInFlight];
-    private readonly Int32[] _indexCapacities = new Int32[Constants.MaxFramesInFlight];
-    private const Int32 VertexHeadroom = 5000;
-    private const Int32 IndexHeadroom = 10000;
+    private readonly int[] _vertexCapacities = new int[Constants.MaxFramesInFlight];
+    private readonly int[] _indexCapacities = new int[Constants.MaxFramesInFlight];
+    private const int VertexHeadroom = 5000;
+    private const int IndexHeadroom = 10000;
 
-    private readonly Dictionary<Int32, TextureBackend> _textures = new();
+    private readonly Dictionary<int, TextureBackend> _textures = new();
 
     private readonly VmaAllocator _allocator;
     private readonly DeviceEx _device;
@@ -42,13 +44,13 @@ public sealed class ImGuiManager : IDisposable
     private DescriptorPoolEx _descriptorPool;
 
     public DescriptorSetLayoutEx DescriptorSetLayout { get; private set; }
-    
+
     public Pipeline Pipeline { get; private set; }
 
-    public BufferEx GetVertexBuffer(Int32 frameIndex)
+    public BufferEx GetVertexBuffer(int frameIndex)
         => _vertexBuffers[frameIndex];
 
-    public BufferEx GetIndexBuffer(Int32 frameIndex)
+    public BufferEx GetIndexBuffer(int frameIndex)
         => _indexBuffers[frameIndex];
 
     public ImGuiManager(VmaAllocator allocator, DeviceEx device, CommandBufferManager cmdManager,
@@ -59,6 +61,9 @@ public sealed class ImGuiManager : IDisposable
         _cmdManager = cmdManager;
         _window = window;
         _input = input;
+
+        _input.InputModeChanged += OnInputModeChanged;
+        _input.Ui = this;
 
         _context = ImGui.CreateContext();
         if (_context.IsNull())
@@ -74,7 +79,7 @@ public sealed class ImGuiManager : IDisposable
         SetStyle();
 
         CreateResources();
-        
+
         CreateImGuiPipeline(context);
 
         _window.OnKey += OnKey;
@@ -88,39 +93,39 @@ public sealed class ImGuiManager : IDisposable
         ImGui.StyleColorsDark();
 
         ImGui.PushStyleColor(ImGuiCol.TitleBgActive, ImGui.GetStyleColorVec4(ImGuiCol.TitleBg));
-        
+
         ImGui.PushStyleColor(ImGuiCol.Tab, new float4(0.08f, 0.08f, 0.08f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.TabSelected, new float4(0.12f, 0.12f, 0.12f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.TabHovered, new float4(0.16f, 0.16f, 0.16f, 1.0f));
-        
+
         ImGui.PushStyleColor(ImGuiCol.FrameBg, new float4(0.035f, 0.035f, 0.035f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new float4(0.07f, 0.07f, 0.07f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new float4(0.10f, 0.10f, 0.10f, 1.0f));
 
         ImGui.PushStyleColor(ImGuiCol.WindowBg, new float4(0.02f, 0.02f, 0.02f, 0.92f));
-        
+
         ImGui.PushStyleColor(ImGuiCol.Header, new float4(0.06f, 0.06f, 0.06f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.HeaderActive, new float4(0.10f, 0.10f, 0.10f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.HeaderHovered, new float4(0.13f, 0.13f, 0.13f, 1.0f));
-        
+
         ImGui.PushStyleColor(ImGuiCol.ResizeGrip, new float4(0.12f, 0.12f, 0.12f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.ResizeGripActive, new float4(0.16f, 0.16f, 0.16f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.ResizeGripHovered, new float4(0.20f, 0.20f, 0.20f, 1.0f));
-        
+
         ImGui.PushStyleColor(ImGuiCol.Button, new float4(0.05f, 0.05f, 0.05f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.ButtonActive, new float4(0.08f, 0.08f, 0.08f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new float4(0.10f, 0.10f, 0.10f, 1.0f));
-            
+
         ImGui.PushStyleColor(ImGuiCol.Separator, new float4(0.12f, 0.12f, 0.12f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.SeparatorActive, new float4(0.16f, 0.16f, 0.16f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.SeparatorHovered, new float4(0.20f, 0.20f, 0.20f, 1.0f));
-        
+
         ImGui.PushStyleColor(ImGuiCol.SliderGrab, new float4(0.07f, 0.07f, 0.07f, 1.0f));
         ImGui.PushStyleColor(ImGuiCol.SliderGrabActive, new float4(0.12f, 0.12f, 0.12f, 1.0f));
-        
-        
+
+
         ImGui.PushStyleColor(ImGuiCol.MenuBarBg, new float4(0.12f, 0.12f, 0.12f, 1.0f));
-        
+
         var style = ImGui.GetStyle();
         style.FontSizeBase = 16.0f;
         style.WindowBorderSize = 0.0f;
@@ -259,7 +264,7 @@ public sealed class ImGuiManager : IDisposable
             ViewportCount = 1,
             ScissorCount = 1,
         };
-        
+
         Span<VkDynamicState> dynamicStates = [VkDynamicState.Viewport, VkDynamicState.Scissor];
 
         var pipelineLayout = _device.CreatePipelineLayout([DescriptorSetLayout],
@@ -298,15 +303,15 @@ public sealed class ImGuiManager : IDisposable
     }
 
 
-    public void NewFrame(Single deltaTime)
+    public void NewFrame(float deltaTime)
     {
-        ImGui.GetIO().DeltaTime = Single.Max(deltaTime, 1e-5f);
+        ImGui.GetIO().DeltaTime = float.Max(deltaTime, 1e-5f);
         ImGui.NewFrame();
-        
+
         ImString.SharedStorage.Reset();
     }
 
-    public void RenderFrame(Int32 frameIndex)
+    public void RenderFrame(int frameIndex)
     {
         ImGui.Render();
 
@@ -408,7 +413,7 @@ public sealed class ImGuiManager : IDisposable
     private unsafe void UploadTexture(ImTextureDataPtr texture, VkImageLayout oldLayout)
     {
         var backend = _textures[texture.UniqueID];
-        var uploadSize = (Int64)texture.Width * texture.Height * texture.BytesPerPixel;
+        var uploadSize = (long)texture.Width * texture.Height * texture.BytesPerPixel;
 
         var bufferInfo = new BufferEx.CreateInfo
         {
@@ -456,7 +461,7 @@ public sealed class ImGuiManager : IDisposable
         backend.Image.Dispose();
     }
 
-    private unsafe void UpdateBuffers(Int32 frameIndex)
+    private unsafe void UpdateBuffers(int frameIndex)
     {
         var drawData = ImGui.GetDrawData();
         if (!drawData.Valid || drawData.CmdListsCount == 0) return;
@@ -495,7 +500,7 @@ public sealed class ImGuiManager : IDisposable
             {
                 Name = "ImGui Index Buffer",
                 BufferFlags = VkBufferCreateFlags.None,
-                BufferSize = ByteSize.Of(newCapacity * sizeof(UInt16)),
+                BufferSize = ByteSize.Of(newCapacity * sizeof(ushort)),
                 BufferUsage = VkBufferUsageFlags.IndexBufferBit,
                 BufferSharingMode = VkSharingMode.Exclusive,
                 AllocRequiredProperties = VkMemoryPropertyFlags.HostVisibleBit | VkMemoryPropertyFlags.HostCoherentBit
@@ -511,14 +516,14 @@ public sealed class ImGuiManager : IDisposable
         var idxMemory = _indexBuffers[frameIndex].Map();
 
         var vtxDst = (ImDrawVert*)vtxMemory.MapPtr;
-        var idxDst = (UInt16*)idxMemory.MapPtr;
+        var idxDst = (ushort*)idxMemory.MapPtr;
 
         foreach (var cmdList in drawData.CmdLists)
         {
             Buffer.MemoryCopy(cmdList.VtxBuffer.Data, vtxDst, cmdList.VtxBuffer.Count * sizeof(ImDrawVert),
                 cmdList.VtxBuffer.Count * sizeof(ImDrawVert));
-            Buffer.MemoryCopy(cmdList.IdxBuffer.Data, idxDst, cmdList.IdxBuffer.Count * sizeof(UInt16),
-                cmdList.IdxBuffer.Count * sizeof(UInt16));
+            Buffer.MemoryCopy(cmdList.IdxBuffer.Data, idxDst, cmdList.IdxBuffer.Count * sizeof(ushort),
+                cmdList.IdxBuffer.Count * sizeof(ushort));
             vtxDst += cmdList.VtxBuffer.Count;
             idxDst += cmdList.IdxBuffer.Count;
         }
@@ -539,18 +544,18 @@ public sealed class ImGuiManager : IDisposable
 
     private void OnMouseButton(GlfwWindow window, GlfwMouseButton button, GlfwButtonAction action, GlfwModifier mods)
     {
-        ImGui.GetIO().AddMouseButtonEvent((Int32)button, action == GlfwButtonAction.Press);
+        ImGui.GetIO().AddMouseButtonEvent((int)button, action == GlfwButtonAction.Press);
     }
-    
-    private void OnKey(GlfwWindow window, GlfwKey key, Int32 scancode, GlfwKeyAction action, GlfwModifier mods)
+
+    private void OnKey(GlfwWindow window, GlfwKey key, int scancode, GlfwKeyAction action, GlfwModifier mods)
     {
         var io = ImGui.GetIO();
-        
+
         io.AddKeyEvent(ImGuiKey.Mod_Ctrl, mods.HasFlag(GlfwModifier.Control));
         io.AddKeyEvent(ImGuiKey.Mod_Shift, mods.HasFlag(GlfwModifier.Shift));
         io.AddKeyEvent(ImGuiKey.Mod_Alt, mods.HasFlag(GlfwModifier.Alt));
         io.AddKeyEvent(ImGuiKey.Mod_Super, mods.HasFlag(GlfwModifier.Super));
-        
+
         var imKey = GlfwImGuiTranslation.ToImGuiKey(key);
         if (imKey == ImGuiKey.None) return;
 
@@ -562,11 +567,11 @@ public sealed class ImGuiManager : IDisposable
 
             if (imKey == ImGuiKey.Tab && !io.WantTextInput) return;
         }
-        
+
         ImGui.GetIO().AddKeyEvent(imKey, pressed);
     }
 
-    private void OnChar(GlfwWindow window, UInt32 codepoint)
+    private void OnChar(GlfwWindow window, uint codepoint)
     {
         if (_input.InputMode != InputMode.UiInteraction) return;
         ImGui.GetIO().AddInputCharacter(codepoint);
@@ -575,7 +580,7 @@ public sealed class ImGuiManager : IDisposable
     private void OnCursorPos(GlfwWindow window, double2 pos)
     {
         var scale = window.ContentScale;
-        ImGui.GetIO().AddMousePosEvent((Single)pos.X * scale.X, (Single)pos.Y * scale.Y);
+        ImGui.GetIO().AddMousePosEvent((float)pos.X * scale.X, (float)pos.Y * scale.Y);
     }
 
     public void Dispose()
@@ -603,6 +608,9 @@ public sealed class ImGuiManager : IDisposable
 
         Pipeline.Dispose();
 
+        _input.InputModeChanged -= OnInputModeChanged;
+        if (_input.Ui == this) _input.Ui = null;
+        
         _window.OnKey -= OnKey;
         _window.OnChar -= OnChar;
         _window.OnMouseButton -= OnMouseButton;
@@ -610,4 +618,32 @@ public sealed class ImGuiManager : IDisposable
 
         ImGui.DestroyContext(_context);
     }
+
+    public void OnResize(RenderTargets targets)
+    {
+        UpdateDisplaySize();
+    }
+
+    public void OnPrepare(RenderContext ctx)
+    {
+        RenderFrame(ctx.FrameIndex);
+    }
+
+    private void OnInputModeChanged(InputMode mode, double2 pos)
+    {
+        var io = ImGui.GetIO();
+        if (mode == InputMode.CameraControl)
+        {
+            io.ConfigFlags |= ImGuiConfigFlags.NoMouse | ImGuiConfigFlags.NoMouseCursorChange;
+            io.AddMousePosEvent(-float.MaxValue, -float.MaxValue);
+        }
+        else
+        {
+            io.ConfigFlags &= ~(ImGuiConfigFlags.NoMouse | ImGuiConfigFlags.NoMouseCursorChange);
+            io.AddMousePosEvent((float)pos.X, (float)pos.Y);
+        }
+    }
+
+    public bool WantsKeyboard => ImGui.GetIO().WantCaptureKeyboard;
+    public bool WantsMouse => ImGui.GetIO().WantCaptureMouse;
 }

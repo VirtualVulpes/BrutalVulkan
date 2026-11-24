@@ -16,21 +16,21 @@ public class ImGuiPass : IRenderPass
         _manager = imGuiManager;
     }
 
-    public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> _)
+    public unsafe void Record(in RenderContext ctx, ReadOnlySpan<RenderItem> _)
     {
         var colorAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.SwapchainImageView,
+            ImageView = ctx.SwapchainImageView,
             ImageLayout = VkImageLayout.ColorAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Load,
             StoreOp = VkAttachmentStoreOp.Store,
             ClearValue = new VkClearColorValue { Float32 = new float4(0.01f, 0.01f, 0.01f, 1.0f) }
         };
         
-        context.CommandBuffer.BeginRendering(
+        ctx.CommandBuffer.BeginRendering(
             new VkRenderingInfo
             {
-                RenderArea = new VkRect2D(context.Targets.Extent),
+                RenderArea = new VkRect2D(ctx.Targets.Extent),
                 LayerCount = 1,
                 ColorAttachmentCount = 1,
                 ColorAttachments = &colorAttachment
@@ -40,19 +40,19 @@ public class ImGuiPass : IRenderPass
         var drawData = ImGui.GetDrawData();
         if (!drawData.Valid || drawData.CmdListsCount == 0)
         {
-            context.CommandBuffer.EndRendering();
+            ctx.CommandBuffer.EndRendering();
             return;
         }
 
-        var fbWidth = (Int32)(drawData.DisplaySize.X * drawData.FramebufferScale.X);
-        var fbHeight = (Int32)(drawData.DisplaySize.Y * drawData.FramebufferScale.Y);
+        var fbWidth = (int)(drawData.DisplaySize.X * drawData.FramebufferScale.X);
+        var fbHeight = (int)(drawData.DisplaySize.Y * drawData.FramebufferScale.Y);
         if (fbWidth <= 0 || fbHeight <= 0)
         {
-            context.CommandBuffer.EndRendering();
+            ctx.CommandBuffer.EndRendering();
             return;
         }
 
-        var cmdBuf = context.CommandBuffer;
+        var cmdBuf = ctx.CommandBuffer;
 
         cmdBuf.BindPipeline(VkPipelineBindPoint.Graphics, _manager.Pipeline.Handle);
 
@@ -76,8 +76,8 @@ public class ImGuiPass : IRenderPass
         };
         cmdBuf.PushConstants(_manager.Pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero, pushConsts);
 
-        cmdBuf.BindVertexBuffer(0, _manager.GetVertexBuffer(context.FrameIndex), ByteSize.Zero);
-        cmdBuf.BindIndexBuffer(_manager.GetIndexBuffer(context.FrameIndex), VkIndexType.UInt16);
+        cmdBuf.BindVertexBuffer(0, _manager.GetVertexBuffer(ctx.FrameIndex), ByteSize.Zero);
+        cmdBuf.BindIndexBuffer(_manager.GetIndexBuffer(ctx.FrameIndex), VkIndexType.UInt16);
 
         var clipOff = drawData.DisplayPos;
         var clipScale = drawData.FramebufferScale;
@@ -105,12 +105,12 @@ public class ImGuiPass : IRenderPass
                 var scissor = new VkRect2D
                 {
                     Offset = new VkOffset2D(
-                        (Int32)minX,
-                        (Int32)minY
+                        (int)minX,
+                        (int)minY
                     ),
                     Extent = new VkExtent2D(
-                        (Int32)(maxX - minX),
-                        (Int32)(maxY - minY)
+                        (int)(maxX - minX),
+                        (int)(maxY - minY)
                     )
                 };
                 cmdBuf.SetScissor(0, [scissor]);
@@ -124,14 +124,14 @@ public class ImGuiPass : IRenderPass
                     lastSet = set;
                 }
 
-                cmdBuf.DrawIndexed((Int32)cmd.ElemCount, 1, indexOffset + (Int32)cmd.IdxOffset,
-                    vertexOffset + (Int32)cmd.VtxOffset, 0);
+                cmdBuf.DrawIndexed((int)cmd.ElemCount, 1, indexOffset + (int)cmd.IdxOffset,
+                    vertexOffset + (int)cmd.VtxOffset, 0);
             }
 
             vertexOffset += cmdList.VtxBuffer.Count;
             indexOffset += cmdList.IdxBuffer.Count;
         }
 
-        context.CommandBuffer.EndRendering();
+        ctx.CommandBuffer.EndRendering();
     }
 }

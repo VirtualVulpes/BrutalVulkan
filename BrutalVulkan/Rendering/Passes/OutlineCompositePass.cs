@@ -1,75 +1,78 @@
+using Armature.Vulkan;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
-using BrutalVulkan.Rendering.Pipelines;
+using BrutalVulkan.Editor;
 
 namespace BrutalVulkan.Rendering.Passes;
 
-public class OutlineCompositePass : IRenderPass, ITargetConsumer
+public class OutlineCompositePass : IRenderPass, IEditorTargetConsumer
 {
     private Pipeline _pipeline;
-    private DescriptorManager _descriptors;
+    private EditorDescriptors _editor;
     private VkDescriptorSet _descriptorSet;
+    private EditorTargets _targets;
 
-    public OutlineCompositePass(Pipeline pipeline, DescriptorManager descriptors)
+    public OutlineCompositePass(Pipeline pipeline, EditorDescriptors editor)
     {
         _pipeline = pipeline;
-        _descriptors = descriptors;
-        _descriptorSet = descriptors.AllocateOutlineDescriptorSet();
+        _editor = editor;
+        _descriptorSet = editor.AllocateOutlineDescriptorSet();
     }
 
-    public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
+    public unsafe void Record(in RenderContext ctx, ReadOnlySpan<RenderItem> renderObjects)
     {
-        context.Targets.PostProcess.Image.TransitionTo(context.CommandBuffer,
+        ctx.Targets.ResolvedColor.Image.TransitionTo(ctx.CommandBuffer,
             VkImageLayout.ShaderReadOnlyOptimal, VkPipelineStageFlags.FragmentShaderBit, VkAccessFlags.ShaderReadBit);
 
-        context.Targets.SeedA.Image.TransitionTo(context.CommandBuffer,
+        _targets.SeedA.Image.TransitionTo(ctx.CommandBuffer,
             VkImageLayout.General, VkPipelineStageFlags.FragmentShaderBit, VkAccessFlags.ShaderReadBit);
 
         var colorAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.SwapchainImageView,
+            ImageView = ctx.SwapchainImageView,
             ImageLayout = VkImageLayout.ColorAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Load,
             StoreOp = VkAttachmentStoreOp.Store,
             ClearValue = new VkClearColorValue { Float32 = new float4(0.01f, 0.01f, 0.01f, 1.0f) }
         };
 
-        context.CommandBuffer.BeginRendering(
+        ctx.CommandBuffer.BeginRendering(
             new VkRenderingInfo
             {
-                RenderArea = new VkRect2D(context.Targets.Extent),
+                RenderArea = new VkRect2D(ctx.Targets.Extent),
                 LayerCount = 1,
                 ColorAttachmentCount = 1,
                 ColorAttachments = &colorAttachment
             }
         );
 
-        context.CommandBuffer.SetViewport(0, [
+        ctx.CommandBuffer.SetViewport(0, [
             new VkViewport
             {
                 X = 0.0f,
-                Y = context.Targets.Extent.Height,
-                Width = context.Targets.Extent.Width,
-                Height = -context.Targets.Extent.Height,
+                Y = ctx.Targets.Extent.Height,
+                Width = ctx.Targets.Extent.Width,
+                Height = -ctx.Targets.Extent.Height,
                 MinDepth = 0.0f,
                 MaxDepth = 1.0f
             }
         ]);
-        context.CommandBuffer.SetScissor(0, [new VkRect2D(context.Targets.Extent)]);
+        ctx.CommandBuffer.SetScissor(0, [new VkRect2D(ctx.Targets.Extent)]);
 
-        context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
-        context.CommandBuffer
+        ctx.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
+        ctx.CommandBuffer
             .BindDescriptorSets(VkPipelineBindPoint.Graphics, _pipeline.Layout, 0,
                 [_descriptorSet], null);
 
-        context.CommandBuffer.Draw(3, 1, 0, 0);
+        ctx.CommandBuffer.Draw(3, 1, 0, 0);
 
-        context.CommandBuffer.EndRendering();
+        ctx.CommandBuffer.EndRendering();
     }
 
-    public void OnTargetsRecreated(RenderTargets targets)
+    public void OnTargetsRecreated(RenderTargets core, EditorTargets editor)
     {
-        _descriptors.UpdateOutlineDescriptor(_descriptorSet,
-            targets.PostProcess.View.VkImageView, targets.SeedA.View.VkImageView);
+        _targets = editor;   
+        _editor.UpdateOutlineDescriptor(_descriptorSet,
+            core.ResolvedColor.View.VkImageView, editor.SeedA.View.VkImageView);
     }
 }

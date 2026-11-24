@@ -1,7 +1,8 @@
+using Armature.Input;
+using Armature.Scene;
 using Brutal.GlfwApi;
-using BrutalVulkan.ECS;
-using BrutalVulkan.ECS.Components;
-using BrutalVulkan.ECS.Systems;
+using Brutal.Numerics;
+using BrutalVulkan.Editor;
 using BrutalVulkan.UI;
 
 namespace BrutalVulkan.Input;
@@ -10,33 +11,32 @@ public sealed class EditorInput
 {
     private readonly InputManager _input;
     private readonly World _world;
-    private readonly NodeSystem _nodeSystem;
     private readonly EntityPicker _picker;
     private readonly SelectionHelper _selection;
-    
-    public EditorInput(InputManager input, World world, NodeSystem nodeSystem, EntityPicker picker, SelectionHelper selection)
+
+    public EditorInput(InputManager input, World world, EntityPicker picker,
+        SelectionHelper selection)
     {
         _input = input;
         _world = world;
-        _nodeSystem = nodeSystem;
         _picker = picker;
         _selection = selection;
     }
-    
+
     public void Update()
     {
-        var wantMouse = _input.IsImGuiCapturingMouse();
-        var wantKeyboard = _input.IsImGuiCapturingKeyboard();
-        
+        var wantMouse = _input.IsUiCapturingMouse();
+        var wantKeyboard = _input.IsUiCapturingKeyboard();
+
+        var canPick = _input.InputMode == InputMode.UiInteraction && !wantMouse;
+        _picker.Request(canPick ? new int2((Int32)_input.CursorPos.X, (Int32)_input.CursorPos.Y) : null);
+
         switch (_input.InputMode)
         {
             case InputMode.CameraControl when _input.IsKeyPressed(GlfwKey.Tab):
                 _input.SetInputMode(InputMode.UiInteraction);
                 break;
             case InputMode.UiInteraction:
-            {
-                var entity = _picker.HoveredEntity;
-
                 if (!wantKeyboard)
                 {
                     if (_input.IsKeyPressed(GlfwKey.Tab))
@@ -51,24 +51,19 @@ public sealed class EditorInput
                         _picker.Reset();
                         break;
                     }
-
-                    if (_world.IsEntityAlive(entity) && _world.HasComponent<NodeComponent>(entity))
-                    {
-                        if (_input.IsKeyPressed(GlfwKey.L))
-                            _nodeSystem.IncreaseLod(entity);
-                        if (_input.IsKeyPressed(GlfwKey.K))
-                            _nodeSystem.DecreaseLod(entity);
-                    }
                 }
 
-                if (!wantMouse)
-                {
-                    if (_input.IsMouseButtonPressed(GlfwMouseButton.Left))
-                        _selection.SelectEntity(entity);
-                }
+                var hovered = GetHoveredEntity();
+
+                if (!wantMouse && _input.IsMouseButtonPressed(GlfwMouseButton.Left))
+                    _selection.Click(hovered, _input.IsKeyDown(GlfwKey.LeftShift));
 
                 break;
-            }
         }
     }
+
+    private Entity? GetHoveredEntity() =>
+        _picker.HoveredObjectId is { } id
+            ? new Entity { Id = new EntityId(id & 0xFFFF), Generation = id >> 16 }
+            : null;
 }

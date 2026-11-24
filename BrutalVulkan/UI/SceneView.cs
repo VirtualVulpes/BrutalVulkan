@@ -1,7 +1,9 @@
+using Armature.Input;
+using Armature.Scene;
+using Armature.Scene.Components;
+using Brutal.GlfwApi;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
-using BrutalVulkan.ECS;
-using BrutalVulkan.ECS.Components;
 
 namespace BrutalVulkan.UI;
 
@@ -9,23 +11,25 @@ public sealed class SceneView
 {
     private readonly World _world;
     private readonly SelectionHelper _selection;
+    private readonly InputManager _input;
 
     private readonly Dictionary<Entity, List<Entity>> _children = new();
     private readonly List<Entity> _roots = [];
     private Entity _active;
-    private Entity _clicked;
+    private Entity? _clicked;
     private (Entity child, Entity parent, Boolean has) _pendingReparent;
 
-    public SceneView(World world, SelectionHelper selection)
+    public SceneView(World world, SelectionHelper selection, InputManager input)
     {
         _world = world;
         _selection = selection;
+        _input = input;
     }
 
     public void Draw()
     {
         _active = _selection.GetActive();
-        _clicked = Entity.Invalid;
+        _clicked = null;
         _pendingReparent = default;
 
         BuildHierarchy();
@@ -38,11 +42,12 @@ public sealed class SceneView
         }
 
         ImGui.End();
-
-        if (_clicked != Entity.Invalid) _selection.SelectEntity(_clicked);
-
+        
+        if (_clicked is { } c)
+            _selection.Click(c, _input.IsKeyDown(GlfwKey.LeftShift));
+        
         if (_pendingReparent.has)
-            _world.SetParent(_pendingReparent.child, _pendingReparent.parent);
+            HierarchyExtensions.AddParent(_world, _pendingReparent.child, _pendingReparent.parent);
     }
 
     private void BuildHierarchy()

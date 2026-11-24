@@ -1,6 +1,6 @@
+using Armature.Scene.Components;
 using Brutal.ImGuiApi;
-using BrutalVulkan.ECS;
-using BrutalVulkan.ECS.Components;
+using Armature.Scene;
 
 namespace BrutalVulkan.UI;
 
@@ -21,11 +21,10 @@ public sealed class Inspector
         Register<RotateComponent>("Rotation", DrawRotate);
         Register<ColorComponent>("Color", DrawColor);
         Register<LightComponent>("Light", DrawLight);
-        Register<NodeComponent>("Node", DrawNode);
         Register<CameraComponent>("Camera", DrawCamera);
         Register<MeshComponent>("Mesh", DrawMesh);
         Register<TextureComponent>("Texture", DrawTexture);
-        Register<PipelineComponent>("Pipeliner", DrawPipeline);
+        Register<PipelineComponent>("Pipeline", DrawPipeline);
     }
 
     private void Register<T>(String name, RefAction<T> draw) where T : struct
@@ -40,10 +39,12 @@ public sealed class Inspector
         
         ImGui.Begin("Inspector"u8, ImGuiWindowFlags.AlwaysAutoResize);
 
+        ImGui.PushID((Int32)e.Id.Value);
         foreach (var drawer in _drawers.Values)
         {
             drawer.Draw(_world, e);
         }
+        ImGui.PopID();
         
         ImGui.End();
     }
@@ -120,14 +121,6 @@ public sealed class Inspector
             default:
                 throw new ArgumentOutOfRangeException($"Invalid light type: {c.Type}");
         }
-    }
-    
-    private void DrawNode(ref NodeComponent c)
-    {
-        ImGui.Text($"Face {c.Face}");
-        ImGui.Text($"Level {c.Level}");
-        ImGui.Text($"X {c.X}");
-        ImGui.Text($"Y {c.Y}");
     }
     
     private void DrawCamera(ref CameraComponent c)

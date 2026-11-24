@@ -1,5 +1,5 @@
+using Armature.Core;
 using Brutal.Numerics;
-using BrutalVulkan.ECS;
 using BrutalVulkan.Rendering.Meshes;
 using BrutalVulkan.Rendering.Pipelines;
 
@@ -15,6 +15,6 @@ public readonly struct RenderObject
     public RenderDataType DataType { get; init; }
     public float3 Color { get; init; }
     public TextureId TextureId { get; init; }
-    public Boolean IsSelected { get; init; }
-    public Entity Entity { get; init; }
+    public RenderFlags Flags { get; init; }
+    public UInt32 ObjectId { get; init; }
 }

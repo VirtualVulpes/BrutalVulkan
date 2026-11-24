@@ -1,10 +1,10 @@
+using Armature.Core;
+using Armature.Input;
+using Armature.Scene;
+using Armature.Scene.Components;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
-using BrutalVulkan.ECS;
-using BrutalVulkan.ECS.Components;
-using BrutalVulkan.ECS.Systems;
-using BrutalVulkan.Input;
-using BrutalVulkan.Utility;
+using World = Armature.Scene.World;
 
 namespace BrutalVulkan.Camera;
 
@@ -63,7 +63,7 @@ public class CameraController
         if (_inputManager.IsKeyDown(GlfwKey.LeftControl))
             movement -= float3.UnitY;
 
-        TransformUtility.MoveLocal(ref transform, float3.NormalizeOrZero(movement) * deltaTime * Speed);
+        TransformExtensions.MoveLocal(ref transform, float3.NormalizeOrZero(movement) * deltaTime * Speed);
 
         // Camera rotation
         var mouseDelta = _inputManager.CursorDelta;

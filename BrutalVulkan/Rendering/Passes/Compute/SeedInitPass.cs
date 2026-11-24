@@ -1,32 +1,33 @@
+using Armature.Vulkan;
 using Brutal.VulkanApi;
-using BrutalVulkan.Rendering.Pipelines;
-using BrutalVulkan.Utility;
+using BrutalVulkan.Editor;
 
 namespace BrutalVulkan.Rendering.Passes.Compute;
 
-public class SeedInitPass : IRenderPass, ITargetConsumer
+public class SeedInitPass : IRenderPass, IEditorTargetConsumer
 {
     private readonly Pipeline _pipeline;
-    private readonly DescriptorManager _descriptors;
+    private EditorDescriptors _editor;
     private readonly VkDescriptorSet _descriptorSet;
+    private EditorTargets _targets;
 
-    public SeedInitPass(Pipeline pipeline, DescriptorManager descriptors)
+    public SeedInitPass(Pipeline pipeline, EditorDescriptors editor)
     {
         _pipeline = pipeline;
-        _descriptors = descriptors;
-        _descriptorSet = descriptors.AllocateSeedInitDescriptorSet();
+        _editor = editor;
+        _descriptorSet = editor.AllocateSeedDescriptorSet();
     }
 
-    public void Record(in RenderContext context, ReadOnlySpan<RenderItem> _)
+    public void Record(in RenderContext ctx, ReadOnlySpan<RenderItem> _)
     {
-        context.Targets.SelectionMask.Image.TransitionTo(context.CommandBuffer, VkImageLayout.General,
+        _targets.SelectionMask.Image.TransitionTo(ctx.CommandBuffer, VkImageLayout.General,
             VkPipelineStageFlags.ComputeShaderBit, VkAccessFlags.ShaderReadBit);
 
-        context.Targets.SeedA.Image.TransitionTo(context.CommandBuffer, VkImageLayout.General,
+        _targets.SeedA.Image.TransitionTo(ctx.CommandBuffer, VkImageLayout.General,
             VkPipelineStageFlags.ComputeShaderBit, VkAccessFlags.ShaderWriteBit);
 
-        context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Compute, _pipeline.Handle);
-        context.CommandBuffer
+        ctx.CommandBuffer.BindPipeline(VkPipelineBindPoint.Compute, _pipeline.Handle);
+        ctx.CommandBuffer
             .BindDescriptorSets(VkPipelineBindPoint.Compute, _pipeline.Layout, 0,
                 [_descriptorSet],
                 null);
@@ -34,13 +35,14 @@ public class SeedInitPass : IRenderPass, ITargetConsumer
         const Int32 localSizeX = 16;
         const Int32 localSizeY = 16;
 
-        context.CommandBuffer.Dispatch((context.Targets.Extent.Width + localSizeX - 1) / localSizeX,
-            (context.Targets.Extent.Height + localSizeY - 1) / localSizeY, 1);
+        ctx.CommandBuffer.Dispatch((ctx.Targets.Extent.Width + localSizeX - 1) / localSizeX,
+            (ctx.Targets.Extent.Height + localSizeY - 1) / localSizeY, 1);
     }
 
-    public void OnTargetsRecreated(RenderTargets targets)
+    public void OnTargetsRecreated(RenderTargets core, EditorTargets editor)
     {
-        _descriptors.UpdateSeedDescriptor(_descriptorSet, targets.SelectionMask.View.VkImageView,
-            targets.SeedA.View.VkImageView);
+        _targets = editor;   
+        _editor.UpdateSeedDescriptor(_descriptorSet, editor.SelectionMask.View.VkImageView,
+            editor.SeedA.View.VkImageView);
     }
 }

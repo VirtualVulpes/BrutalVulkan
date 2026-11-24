@@ -1,6 +1,4 @@
-using Brutal.Numerics;
 using Brutal.VulkanApi;
-using BrutalVulkan.Rendering.GpuTypes;
 
 namespace BrutalVulkan.Rendering;
 

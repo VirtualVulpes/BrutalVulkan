@@ -1,3 +1,5 @@
+using Armature.Rendering;
+using Armature.Vulkan;
 using Brutal;
 using Brutal.GlfwApi;
 using Brutal.VulkanApi;
@@ -5,9 +7,7 @@ using Brutal.VulkanApi.Abstractions;
 using BrutalVulkan.Rendering.GpuTypes;
 using BrutalVulkan.Rendering.Meshes;
 using BrutalVulkan.Rendering.Passes;
-using BrutalVulkan.Rendering.Passes.Compute;
 using BrutalVulkan.Rendering.Pipelines;
-using BrutalVulkan.UI;
 using BrutalVulkan.Utility;
 using CommunityToolkit.HighPerformance;
 
@@ -25,13 +25,12 @@ public sealed class Renderer : IDisposable
     private readonly VulkanContext _context;
     private readonly GlfwWindow _window;
 
-    private DescriptorManager _descriptorManager;
-    private ImGuiManager _imGuiManager;
+    private CoreDescriptors _coreDescriptors;
     private MeshManager _meshManager;
     private PipelineManager _pipelineManager;
 
     private readonly FrameResources[] _frameResources = new FrameResources[Constants.MaxFramesInFlight];
-    private RenderTargets _targets;
+    public RenderTargets Targets { get; private set; }
 
     public Swapchain Swapchain { get; }
 
@@ -40,9 +39,8 @@ public sealed class Renderer : IDisposable
 
     private readonly List<RenderItem> _renderItems = [];
 
-    private IRenderPass[] _renderPasses;
-
-    private EntityPicker _picker;
+    private readonly List<(RenderPhase Phase, IRenderPass Pass)> _passes = [];
+    private readonly List<IFrameListener> _listeners = [];
 
     public VkSampleCountFlags MsaaSamples { get; }
 
@@ -70,39 +68,30 @@ public sealed class Renderer : IDisposable
         }
 
         Swapchain = new Swapchain(_context, _window);
-        _targets = new RenderTargets(context.Allocator, Swapchain.SurfaceFormat.Format, Swapchain.Extent, MsaaSamples);
+        Targets = new RenderTargets(context.Allocator, Swapchain.SurfaceFormat.Format, Swapchain.Extent, MsaaSamples);
     }
 
-    public void Initialize(PipelineManager pipelineManager, DescriptorManager descriptorManager,
-        ImGuiManager imGuiManager,
-        MeshManager meshManager, EntityPicker picker)
+    public void Initialize(PipelineManager pipelineManager, CoreDescriptors coreDescriptors,
+        MeshManager meshManager)
     {
-        _descriptorManager = descriptorManager;
-        _imGuiManager = imGuiManager;
+        _coreDescriptors = coreDescriptors;
         _meshManager = meshManager;
         _pipelineManager = pipelineManager;
-
-        _picker = picker;
-
-        _renderPasses =
-        [
-            new EntityIdPass(_pipelineManager.GetPipeline("Entity Id")),
-            new SelectionMaskPass(_pipelineManager.GetPipeline("Selection Mask")),
-            new OpaquePass(),
-            new AtmospherePass(_pipelineManager.GetPipeline("Atmosphere"), _descriptorManager),
-            new SeedInitPass(_pipelineManager.GetPipeline("Seed Init"), _descriptorManager),
-            new JumpFloodPass(_pipelineManager.GetPipeline("Jump Flood"), _descriptorManager),
-            new OutlineCompositePass(_pipelineManager.GetPipeline("Outline Composite"), _descriptorManager),
-            new ImGuiPass(_imGuiManager)
-        ];
 
         AllocateDescriptorSets();
 
         CreatePerFrameBuffers();
         UpdateFrameDescriptors();
-
-        NotifyTargetsRecreated();
     }
+
+    public void AddPass(IRenderPass pass, RenderPhase phase)
+    {
+        var i = _passes.FindLastIndex(p => p.Phase <= phase) + 1;
+        _passes.Insert(i, (phase, pass));
+        if (pass is ITargetConsumer c) c.OnTargetsRecreated(Targets);
+    }
+
+    public void AddListener(IFrameListener l) => _listeners.Add(l);
 
     private void CreatePerFrameBuffers()
     {
@@ -225,28 +214,26 @@ public sealed class Renderer : IDisposable
 
         Swapchain.Recreate(_window);
 
-        _targets.Dispose();
-        _targets = new RenderTargets(_context.Allocator, Swapchain.SurfaceFormat.Format, Swapchain.Extent, MsaaSamples);
+        Targets.Dispose();
+        Targets = new RenderTargets(_context.Allocator, Swapchain.SurfaceFormat.Format, Swapchain.Extent, MsaaSamples);
         NotifyTargetsRecreated();
-
-        _imGuiManager.UpdateDisplaySize();
-        _picker.Reset();
+        
+        foreach (var l in _listeners) l.OnResize(Targets);
     }
 
     private void AllocateDescriptorSets()
     {
         foreach (var r in _frameResources)
         {
-            r.PerFrameDescriptorSet = _descriptorManager.AllocatePerFrameDescriptorSet();
+            r.PerFrameDescriptorSet = _coreDescriptors.AllocatePerFrameDescriptorSet();
         }
     }
 
     private void NotifyTargetsRecreated()
     {
-        foreach (var pass in _renderPasses)
-        {
-            if (pass is ITargetConsumer c) c.OnTargetsRecreated(_targets);
-        }
+        foreach (var (_, pass) in _passes)
+            if (pass is ITargetConsumer c)
+                c.OnTargetsRecreated(Targets);
     }
 
     private VkSampleCountFlags GetMaxSampleCount()
@@ -276,7 +263,7 @@ public sealed class Renderer : IDisposable
     {
         _context.Device.WaitForFence(_frameResources[_frameIndex].Fence, -1);
 
-        _picker.Collect(_frameIndex);
+        foreach (var l in _listeners) l.OnFrameBegin(_frameIndex);
 
         var result = _context.Device.AcquireNextImageKHR(Swapchain.Handle, -1,
             _frameResources[_frameIndex].ImageAvailable,
@@ -308,9 +295,9 @@ public sealed class Renderer : IDisposable
         var context = new RenderContext
         {
             FrameResources = r,
-            Targets = _targets,
+            Targets = Targets,
             SwapchainImageView = Swapchain.ImageView(imageIndex),
-            GlobalDescriptorSet = _descriptorManager.GlobalSet,
+            GlobalDescriptorSet = _coreDescriptors.GlobalSet,
             FrameIndex = _frameIndex,
             Scene = scene
         };
@@ -329,7 +316,7 @@ public sealed class Renderer : IDisposable
             r.CommandBuffer
         );
 
-        _imGuiManager.RenderFrame(_frameIndex);
+        foreach (var l in _listeners) l.OnPrepare(context);
 
         _renderItems.Clear();
         foreach (var o in scene.ObjectSpan)
@@ -342,8 +329,8 @@ public sealed class Renderer : IDisposable
                     TextureId = o.TextureId,
                     Color = o.Color,
                     DataType = o.DataType,
-                    IsSelected = o.IsSelected,
-                    Entity = o.Entity
+                    Flags = o.Flags,
+                    ItemId = o.ObjectId
                 }
             );
         }
@@ -353,13 +340,13 @@ public sealed class Renderer : IDisposable
         UpdateLights(r, scene.LightSpan);
         UpdateCamera(r, scene.Camera);
 
-
-        foreach (var pass in _renderPasses)
+        
+        foreach (var (_, pass) in _passes)
         {
             pass.Record(context, items);
         }
 
-        _picker.Record(r.CommandBuffer, _frameIndex, _targets.EntityId.Image, _targets.Extent);
+        foreach (var l in _listeners) l.OnPostRecord(context);
 
         ImageUtility.TransitionImage(
             Swapchain.Image(imageIndex),
@@ -429,7 +416,7 @@ public sealed class Renderer : IDisposable
             r.DestroySync(_context.Device);
         }
 
-        _targets.Dispose();
+        Targets.Dispose();
         Swapchain.Dispose();
     }
 }

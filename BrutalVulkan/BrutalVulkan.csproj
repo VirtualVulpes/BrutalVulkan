@@ -73,9 +73,9 @@
     </ItemGroup>
     
     <ItemGroup>
-        <ProjectReference Include="../BrutalVulkan.Generators/BrutalVulkan.Generators.csproj"
-                          OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false"/>
+        <ProjectReference Include="..\Armature.Core\Armature.Core.csproj" />
+        <ProjectReference Include="..\Armature.Input\Armature.Input.csproj" />
+        <ProjectReference Include="..\Armature.Scene\Armature.Scene.csproj" />
+        <ProjectReference Include="..\Armature.SceneRendering\Armature.SceneRendering.csproj" />
     </ItemGroup>
-
 </Project>

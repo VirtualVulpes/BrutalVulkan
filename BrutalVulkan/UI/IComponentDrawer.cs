@@ -1,4 +1,4 @@
-using BrutalVulkan.ECS;
+using Armature.Scene;
 
 namespace BrutalVulkan.UI;
 

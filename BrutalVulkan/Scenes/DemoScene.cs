@@ -1,12 +1,12 @@
+using Armature.Scene;
+using Armature.Scene.Components;
 using Brutal.Numerics;
-using BrutalVulkan.ECS;
-using BrutalVulkan.ECS.Components;
 
 namespace BrutalVulkan.Scenes;
 
 public static class DemoScene
 {
-    public static SceneDef Create() => new(Name: "Demo Scene",
+    public static SceneDef Create() => new((string)"Demo Scene",
         Definitions:
         [
             new EntityDef(Name: "Floor",
@@ -67,18 +67,18 @@ public static class DemoScene
                     new PipelineDef("Phong Texture"),
                     new TextureDef("viking_room")
                 ]),
-            new EntityDef(Name: "Textured Planet",
+            new EntityDef(Name: "Textured Sphere",
                 Components:
                 [
                     new TransformDef
                     {
                         Position = new float3(6.0f, 1.0f, 0.0f),
                     },
-                    new MeshDef("planet"),
+                    new MeshDef("sphere"),
                     new PipelineDef("Phong Texture"),
                     new TextureDef("statue")
                 ]),
-            new EntityDef(Name: "Wireframe Planet",
+            new EntityDef(Name: "Wireframe Sphere",
                 Components:
                 [
                     new TransformDef
@@ -87,7 +87,7 @@ public static class DemoScene
                         Rotation = floatQuat.CreateFromAxisAngle(float3.UnitZ,
                             Single.DegreesToRadians(23.44f)) // earth's axial tilt
                     },
-                    new MeshDef("planet"),
+                    new MeshDef("sphere"),
                     new PipelineDef("Wireframe"),
                     new ColorDef(new float3(0.6f, 0.3f, 0.6f)),
                     new RotateDef
@@ -98,7 +98,7 @@ public static class DemoScene
                 ],
                 Children:
                 [
-                    new EntityDef(Name: "Wireframe Moon",
+                    new EntityDef(Name: "Wireframe Sphere 2",
                         Components:
                         [
                             new TransformDef

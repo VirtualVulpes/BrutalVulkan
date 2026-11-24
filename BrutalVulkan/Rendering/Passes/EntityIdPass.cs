@@ -1,33 +1,36 @@
+using Armature.Vulkan;
 using Brutal;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
-using BrutalVulkan.Rendering.Pipelines;
+using BrutalVulkan.Editor;
 
 namespace BrutalVulkan.Rendering.Passes;
 
 public class EntityIdPass : IRenderPass
 {
-    private Pipeline _pipeline;
+    private readonly Pipeline _pipeline;
+    private readonly EditorTargets _editor;
 
-    public EntityIdPass(Pipeline pipeline)
+    public EntityIdPass(Pipeline pipeline, EditorTargets editor)
     {
         _pipeline = pipeline;
+        _editor = editor;
     }
 
-    public unsafe void Record(in RenderContext context, ReadOnlySpan<RenderItem> renderObjects)
+    public unsafe void Record(in RenderContext ctx, ReadOnlySpan<RenderItem> renderObjects)
     {
-        context.Targets.EntityId.Image.TransitionTo(context.CommandBuffer,
+        _editor.EntityId.Image.TransitionTo(ctx.CommandBuffer,
             VkImageLayout.ColorAttachmentOptimal, VkPipelineStageFlags.ColorAttachmentOutputBit,
             VkAccessFlags.ColorAttachmentWriteBit);
 
-        context.Targets.EntityIdDepth.Image.TransitionTo(context.CommandBuffer,
+        _editor.EntityIdDepth.Image.TransitionTo(ctx.CommandBuffer,
             VkImageLayout.DepthAttachmentOptimal, VkPipelineStageFlags.EarlyFragmentTestsBit,
-            VkAccessFlags.DepthStencilAttachmentWriteBit, VkImageAspectFlags.DepthBit);
+            VkAccessFlags.DepthStencilAttachmentReadBit, VkImageAspectFlags.DepthBit);
         
         var colorAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.Targets.EntityId.View.VkImageView,
+            ImageView = _editor.EntityId.View.VkImageView,
             ImageLayout = VkImageLayout.ColorAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Clear,
             StoreOp = VkAttachmentStoreOp.Store,
@@ -36,17 +39,17 @@ public class EntityIdPass : IRenderPass
 
         var depthAttachment = new VkRenderingAttachmentInfo
         {
-            ImageView = context.Targets.EntityIdDepth.View.VkImageView,
+            ImageView = _editor.EntityIdDepth.View.VkImageView,
             ImageLayout = VkImageLayout.DepthAttachmentOptimal,
             LoadOp = VkAttachmentLoadOp.Clear,
-            StoreOp = VkAttachmentStoreOp.Store,
+            StoreOp = VkAttachmentStoreOp.DontCare,
             ClearValue = new VkClearDepthStencilValue { Depth = 1.0f, Stencil = 0 }
         };
         
-        context.CommandBuffer.BeginRendering(
+        ctx.CommandBuffer.BeginRendering(
             new VkRenderingInfo
             {
-                RenderArea = new VkRect2D(context.Targets.Extent),
+                RenderArea = new VkRect2D(ctx.Targets.Extent),
                 LayerCount = 1,
                 ColorAttachmentCount = 1,
                 ColorAttachments = &colorAttachment,
@@ -54,47 +57,47 @@ public class EntityIdPass : IRenderPass
             }
         );
 
-        context.CommandBuffer.SetViewport(0, [
+        ctx.CommandBuffer.SetViewport(0, [
             new VkViewport
             {
                 X = 0.0f,
-                Y = context.Targets.Extent.Height,
-                Width = context.Targets.Extent.Width,
-                Height = -context.Targets.Extent.Height,
+                Y = ctx.Targets.Extent.Height,
+                Width = ctx.Targets.Extent.Width,
+                Height = -ctx.Targets.Extent.Height,
                 MinDepth = 0.0f,
                 MaxDepth = 1.0f
             }
         ]);
-        context.CommandBuffer.SetScissor(0, [new VkRect2D(context.Targets.Extent)]);
+        ctx.CommandBuffer.SetScissor(0, [new VkRect2D(ctx.Targets.Extent)]);
 
-        context.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
+        ctx.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, _pipeline.Handle);
 
         foreach (var renderObject in renderObjects)
         {
             var vertPushConsts = new PushConstantBlocks.VertexBlock
             {
-                Mvp = renderObject.ModelMatrix * context.Scene.Camera.ViewProj,
+                Mvp = renderObject.ModelMatrix * ctx.Scene.Camera.ViewProj,
                 Model = renderObject.ModelMatrix
             };
 
             var fragPushConsts = new PushConstantBlocks.EntityIdBlock
             {
-                Id = renderObject.Entity.Id.Value + (renderObject.Entity.Generation << 16)
+                Id = renderObject.ItemId
             };
 
-            context.CommandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
+            ctx.CommandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.VertexBit, ByteSize.Zero,
                 vertPushConsts);
 
-            context.CommandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit, ByteSize.Of<PushConstantBlocks.VertexBlock>(),
+            ctx.CommandBuffer.PushConstants(_pipeline.Layout, VkShaderStageFlags.FragmentBit, ByteSize.Of<PushConstantBlocks.VertexBlock>(),
                 fragPushConsts);
 
             var gpuMesh = renderObject.GpuMesh;
 
-            context.CommandBuffer.BindVertexBuffers(0, [gpuMesh.VertexBuffer], [new ByteSize64(0)]);
-            context.CommandBuffer.BindIndexBuffer(gpuMesh.IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
-            context.CommandBuffer.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
+            ctx.CommandBuffer.BindVertexBuffers(0, [gpuMesh.VertexBuffer], [new ByteSize64(0)]);
+            ctx.CommandBuffer.BindIndexBuffer(gpuMesh.IndexBuffer, new ByteSize64(0), VkIndexType.UInt32);
+            ctx.CommandBuffer.DrawIndexed(gpuMesh.IndexCount, 1, 0, 0, 0);
         }
 
-        context.CommandBuffer.EndRendering();
+        ctx.CommandBuffer.EndRendering();
     }
 }

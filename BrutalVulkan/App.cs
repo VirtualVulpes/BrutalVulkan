@@ -1,17 +1,26 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Armature.Input;
+using Armature.Rendering;
+using Armature.Scene;
+using Armature.Scene.Systems;
+using Armature.SceneRendering;
+using Armature.Vulkan;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
 using BrutalVulkan.Camera;
-using BrutalVulkan.ECS;
-using BrutalVulkan.ECS.Systems;
+using BrutalVulkan.Editor;
 using BrutalVulkan.Input;
 using BrutalVulkan.Rendering;
+using BrutalVulkan.Rendering.GpuTypes;
 using BrutalVulkan.Rendering.Meshes;
+using BrutalVulkan.Rendering.Passes;
 using BrutalVulkan.Rendering.Pipelines;
+using BrutalVulkan.SceneRendering;
 using BrutalVulkan.Scenes;
 using BrutalVulkan.UI;
+using World = Armature.Scene.World;
 
 namespace BrutalVulkan;
 
@@ -23,7 +32,7 @@ public sealed class App : IDisposable
     private readonly InputManager _inputManager;
 
     private VulkanContext _context;
-    private DescriptorManager _descriptorManager;
+    private CoreDescriptors _coreDescriptors;
 
     private PipelineManager _pipelineManager;
     private TextureManager _textureManager;
@@ -34,23 +43,28 @@ public sealed class App : IDisposable
     private ImGuiManager _imGuiManager;
     private readonly Inspector _inspector;
     private readonly SceneView _sceneView;
-
+    
     private CommandBufferManager _cmdManager;
 
     private readonly SystemManager _systemManager;
-    private readonly CameraSystem _cameraSystem;
+    private readonly CameraSystem _camera;
     private readonly CameraController _cameraController;
 
-    private EntityPicker _picker;
-    private readonly EditorInput _editorInput;
+    private World _world;
+    private SelectionHelper _selection;
 
+    // Editor
+    private EditorDescriptors _editorDescriptors;
+    private EditorRenderFeature _editorFeatures;
+    private EditorInput _editorInput;
+    
+    
     public App()
     {
         _window = Glfw.CreateWindow(
             new GlfwWindow.CreateInfo
                 { Title = "Brutal Vulkan", Size = new int2(Constants.WindowWidth, Constants.WindowHeight) }
         );
-        Glfw.PInvoke.SetInputMode(_window, (Int32)GlfwInputMode.Cursor, (Int32)GlfwCursorMode.Disabled);
         _gcHandle = GCHandle.Alloc(this);
         unsafe
         {
@@ -60,27 +74,28 @@ public sealed class App : IDisposable
         _window.OnFramebufferSize += OnFramebufferSize;
 
         _inputManager = new InputManager(_window);
-
-        InitVulkan();
-
-        var world = new World();
-        var selection = new SelectionHelper(world, _inputManager);
-        _inspector = new Inspector(world, selection);
-        _sceneView = new SceneView(world, selection);
+        
+        _world = new World();
+        
+        _selection = new SelectionHelper(_world);
+        _inspector = new Inspector(_world, _selection);
+        _sceneView = new SceneView(_world, _selection, _inputManager);
 
         _systemManager = new SystemManager();
-        var transformSystem = _systemManager.AddSystem(new TransformSystem(world));
-        _systemManager.AddSystem(new RenderSystem(world, transformSystem));
-        _systemManager.AddSystem(new RotateSystem(world));
-        _cameraSystem = _systemManager.AddSystem(new CameraSystem(world));
-        _systemManager.AddSystem(new NodeSystem(world, _meshManager));
+        _systemManager.AddSystem(new RenderSystem(_world));
+        _systemManager.AddSystem(new RotateSystem(_world));
+        _camera = _systemManager.AddSystem(new CameraSystem(_world));
+        
+        InitVulkan();
 
-        _editorInput = new EditorInput(_inputManager, world, _systemManager.GetSystem<NodeSystem>(), _picker, selection);
 
         var resolver = new AssetResolver(_meshManager, _pipelineManager, _textureManager);
-        new SceneLoader(resolver).Load(PlanetScene.Create(), world);
+        new SceneLoader(resolver).Load(DemoScene.Create(), _world);
 
-        _cameraController = new CameraController(world, _inputManager, _cameraSystem);
+        _editorInput =
+            new EditorInput(_inputManager, _world, _editorFeatures.Picker,
+                _selection);
+        _cameraController = new CameraController(_world, _inputManager, _camera);
     }
 
     private static unsafe void OnFramebufferSize(GlfwWindow window, int2 size)
@@ -92,13 +107,14 @@ public sealed class App : IDisposable
 
         if (size.X == 0 || size.Y == 0) return;
 
-        app._cameraSystem.SetAspectRatio((Single)size.X / size.Y);
+        app._camera.SetAspectRatio((float)size.X / size.Y);
     }
 
     private void InitVulkan()
     {
         _context = new VulkanContext(_window);
-        _descriptorManager = new DescriptorManager(_context);
+        _coreDescriptors = new CoreDescriptors(_context);
+        _editorDescriptors = new EditorDescriptors(_context);
 
         _pipelineManager = new PipelineManager(_context.Device);
 
@@ -112,10 +128,10 @@ public sealed class App : IDisposable
             MsaaSamples = _renderer.MsaaSamples
         };
         _imGuiManager =
-            new ImGuiManager(_context.Allocator, _context.Device, _cmdManager, _window, pipelineBuildContext, _inputManager);
-        var pipelineFactory =
-            new PipelineFactory(_context.Device, _pipelineManager, pipelineBuildContext, _descriptorManager);
-        pipelineFactory.CreateDefaultPipelines();
+            new ImGuiManager(_context.Allocator, _context.Device, _cmdManager, _window, pipelineBuildContext,
+                _inputManager);
+        CorePipelines.Register(_context.Device, _pipelineManager, pipelineBuildContext, _coreDescriptors);
+        EditorPipelines.Register(_context.Device, _pipelineManager, pipelineBuildContext, _coreDescriptors, _editorDescriptors);
 
         _meshManager = new MeshManager(_context.Allocator);
         MeshLibrary.RegisterDefaults(_meshManager);
@@ -123,12 +139,21 @@ public sealed class App : IDisposable
         LoadTextures();
         LoadModels();
 
-        _picker = new EntityPicker(_context.Device, _inputManager);
-        _renderer.Initialize(_pipelineManager, _descriptorManager, _imGuiManager, _meshManager, _picker);
+        _renderer.Initialize(_pipelineManager, _coreDescriptors, _meshManager);
+
+        _renderer.AddListener(_imGuiManager);
+
+        _renderer.AddPass(new OpaquePass(), RenderPhase.Scene);
+
+        _editorFeatures = new EditorRenderFeature(_renderer, _context, _pipelineManager, _editorDescriptors);
+
+        _renderer.AddPass(new ImGuiPass(_imGuiManager), RenderPhase.Overlay);
     }
 
     public void Run()
     {
+        _inputManager.SetInputMode(InputMode.CameraControl);
+
         _systemManager.Start();
 
         var last = Stopwatch.GetTimestamp();
@@ -138,7 +163,7 @@ public sealed class App : IDisposable
         while (!_window.ShouldClose)
         {
             var now = Stopwatch.GetTimestamp();
-            var deltaTime = Single.Min((Single)Stopwatch.GetElapsedTime(last, now).TotalSeconds, 0.1f);
+            var deltaTime = float.Min((float)Stopwatch.GetElapsedTime(last, now).TotalSeconds, 0.1f);
             last = now;
 
             _inputManager.Update();
@@ -147,8 +172,8 @@ public sealed class App : IDisposable
 
             _systemManager.Update(deltaTime);
             _cameraController.Update(deltaTime);
-            
-            if (_inputManager.IsKeyPressed(GlfwKey.Escape) && !_inputManager.IsImGuiCapturingKeyboard())
+
+            if (_inputManager.IsKeyPressed(GlfwKey.Escape) && !_inputManager.IsUiCapturingKeyboard())
                 _window.ShouldClose = true;
 
             _editorInput.Update();
@@ -158,7 +183,22 @@ public sealed class App : IDisposable
             _inspector.Draw();
             _sceneView.Draw();
 
-            renderSystem.BuildScene(_cameraSystem.GetActiveCameraData(_renderer.Swapchain.Extent));
+            var camera = _camera.GetActiveCameraData(new float2(_renderer.Swapchain.Extent.Width, _renderer.Swapchain.Extent.Height));
+            float4x4.Invert(camera.View, out var invView);
+            float4x4.Invert(camera.Proj, out var invProj);
+            var invViewport = new float2(1.0f / camera.ViewportSize.X, 1.0f / camera.ViewportSize.Y);
+            var gpuCamera = new GpuCamera
+            {
+                View = camera.View,
+                Proj = camera.Proj,
+                ViewProj = camera.View * camera.Proj,
+                InvView = invView,
+                InvProj = invProj,
+                Position = camera.Position,
+                InvViewport = invViewport
+            };
+            renderSystem.BuildScene(gpuCamera);
+            
             _renderer.DrawFrame(renderSystem.Scene);
         }
     }
@@ -178,7 +218,7 @@ public sealed class App : IDisposable
         {
             var textureId =
                 _textureManager.AddTexture(fileName, commandBuffer, _context.Allocator, TextureColorSpace.SRgb);
-            _descriptorManager.UpdateTextureDescriptor(_textureManager.GetTexture(textureId));
+            _coreDescriptors.UpdateTextureDescriptor(_textureManager.GetTexture(textureId));
         }
 
         _cmdManager.EndSingleTimeCommands(commandBuffer);
@@ -195,17 +235,18 @@ public sealed class App : IDisposable
     {
         _context.Device.WaitIdle();
 
-        _renderer.Dispose();
-        _picker.Dispose();
-
         _imGuiManager.Dispose();
+
+        _editorFeatures.Dispose();
+        _editorDescriptors.Dispose();
+        _renderer.Dispose();
 
         _pipelineManager.Dispose();
         _textureManager.Dispose();
         _meshManager.Dispose();
         _inputManager.Dispose();
 
-        _descriptorManager.Dispose();
+        _coreDescriptors.Dispose();
         _context.Dispose();
 
         _window.OnFramebufferSize -= OnFramebufferSize;

@@ -1,3 +1,4 @@
+using Armature.Vulkan;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using BrutalVulkan.Utility;

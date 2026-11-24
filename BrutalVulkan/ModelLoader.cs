@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
+using Armature.Rendering;
 using Brutal.GltfApi;
 using Brutal.Numerics;
-using BrutalVulkan.Rendering.Meshes;
-using Mesh = BrutalVulkan.Rendering.Meshes.Mesh;
+using Mesh = Armature.Rendering.Mesh;
 
 namespace BrutalVulkan;
 

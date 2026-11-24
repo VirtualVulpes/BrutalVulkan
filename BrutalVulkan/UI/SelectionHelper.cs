@@ -1,7 +1,5 @@
-using Brutal.GlfwApi;
-using BrutalVulkan.ECS;
-using BrutalVulkan.ECS.Components;
-using BrutalVulkan.Input;
+using Armature.Scene;
+using Armature.Scene.Components;
 using CommunityToolkit.HighPerformance;
 
 namespace BrutalVulkan.UI;
@@ -9,19 +7,17 @@ namespace BrutalVulkan.UI;
 public sealed class SelectionHelper
 {
     private readonly World _world;
-    private readonly InputManager _input;
     
     private Int32 _nextSelected = 1;
 
-    public SelectionHelper(World world, InputManager input)
+    public SelectionHelper(World world)
     {
         _world = world;
-        _input = input;
     }
 
-    public void SelectEntity(Entity e)
+    private void SelectEntity(Entity e, Boolean additive)
     {
-        if (_input.IsKeyDown(GlfwKey.LeftShift))
+        if (additive)
         {
             if (!_world.IsEntityAlive(e)) return;
             
@@ -37,10 +33,24 @@ public sealed class SelectionHelper
                 _world.TryRemoveComponent<SelectionComponent>(item.Entity);
             }
             
-            if (_world.IsEntityAlive(e) && !_world.HasComponent<SelectionComponent>(e))
+            if (_world.IsEntityAlive(e))
                 AddSelection(e);
         }
 
+    }
+
+    public void Click(Entity? entity, Boolean additive)
+    {
+        if (entity is { } e) SelectEntity(e, additive);
+        else if (!additive) ClearSelection();
+    }
+
+    public void ClearSelection()
+    {
+        foreach (var item in _world.Query<SelectionComponent>())
+        {
+            _world.TryRemoveComponent<SelectionComponent>(item.Entity);
+        }
     }
 
     private void AddSelection(Entity e)
