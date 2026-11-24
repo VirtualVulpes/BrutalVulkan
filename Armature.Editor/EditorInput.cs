@@ -2,7 +2,6 @@ using Armature.Input;
 using Armature.Scene;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
-using BrutalVulkan.UI;
 
 namespace Armature.Editor;
 

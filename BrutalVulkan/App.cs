@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Armature.DebugUi;
 using Armature.Editor;
 using Armature.Input;
 using Armature.Rendering;
@@ -12,10 +13,7 @@ using Armature.Vulkan;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
-using BrutalVulkan.Rendering.Meshes;
 using BrutalVulkan.Scenes;
-using BrutalVulkan.UI;
-using World = Armature.Scene.World;
 
 namespace BrutalVulkan;
 
@@ -34,6 +32,7 @@ public sealed class App : IDisposable
     private MeshManager _meshManager;
 
     private Renderer _renderer;
+    private SceneRenderer _sceneRenderer;
 
     private ImGuiManager _imGuiManager;
     private readonly Inspector _inspector;
@@ -58,7 +57,7 @@ public sealed class App : IDisposable
     {
         _window = Glfw.CreateWindow(
             new GlfwWindow.CreateInfo
-                { Title = "Brutal Vulkan", Size = new int2(Constants.WindowWidth, Constants.WindowHeight) }
+                { Title = "Brutal Vulkan", Size = new int2(800, 600) }
         );
         _gcHandle = GCHandle.Alloc(this);
         unsafe
@@ -115,7 +114,7 @@ public sealed class App : IDisposable
 
         _cmdManager = new CommandBufferManager(_context.Device, _context.Queue, _context.CommandPool);
 
-        _renderer = new Renderer(_context, _window);
+        _renderer = new Renderer(_context, _window, _coreDescriptors);
 
         var pipelineBuildContext = new PipelineBuildContext
         {
@@ -134,8 +133,9 @@ public sealed class App : IDisposable
         LoadTextures();
         LoadModels();
 
-        _renderer.Initialize(_pipelineManager, _coreDescriptors, _meshManager);
-
+        _sceneRenderer = new SceneRenderer(_pipelineManager, _meshManager, _context, _coreDescriptors);
+        _renderer.AddListener(_sceneRenderer);
+        
         _renderer.AddListener(_imGuiManager);
 
         _renderer.AddPass(new OpaquePass(), RenderPhase.Scene);
@@ -194,7 +194,8 @@ public sealed class App : IDisposable
             };
             renderSystem.BuildScene(gpuCamera);
             
-            _renderer.DrawFrame(renderSystem.Scene);
+            _sceneRenderer.Submit(renderSystem.Scene);
+            _renderer.DrawFrame(_sceneRenderer.Items, _sceneRenderer.ViewProj);
         }
     }
 
@@ -234,6 +235,8 @@ public sealed class App : IDisposable
 
         _editorFeatures.Dispose();
         _editorDescriptors.Dispose();
+        
+        _sceneRenderer.Dispose();
         _renderer.Dispose();
 
         _pipelineManager.Dispose();

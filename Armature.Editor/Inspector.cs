@@ -1,8 +1,8 @@
+using Armature.Scene;
 using Armature.Scene.Components;
 using Brutal.ImGuiApi;
-using Armature.Scene;
 
-namespace BrutalVulkan.UI;
+namespace Armature.Editor;
 
 public sealed class Inspector
 {

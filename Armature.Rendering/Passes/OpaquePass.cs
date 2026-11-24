@@ -85,13 +85,13 @@ public sealed class OpaquePass : IRenderPass
 
                 ctx.CommandBuffer.BindPipeline(VkPipelineBindPoint.Graphics, pipeline.Handle);
                 ctx.CommandBuffer
-                    .BindDescriptorSets(VkPipelineBindPoint.Graphics, pipeline.Layout, 0, [ctx.GlobalDescriptorSet, ctx.FrameResources.PerFrameDescriptorSet],
+                    .BindDescriptorSets(VkPipelineBindPoint.Graphics, pipeline.Layout, 0, [ctx.GlobalDescriptorSet, ctx.PerFrameDescriptorSet],
                         null);
             }
 
             var pushConsts = new PushConstantBlocks.VertexBlock
             {
-                Mvp = renderObject.ModelMatrix * ctx.Scene.Camera.ViewProj,
+                Mvp = renderObject.ModelMatrix * ctx.ViewProj,
                 Model = renderObject.ModelMatrix
             };
 
@@ -103,7 +103,6 @@ public sealed class OpaquePass : IRenderPass
                 case RenderDataType.Color:
                     var colorFrag = new PushConstantBlocks.ColorFragmentBlock
                     {
-                        CameraPosition = ctx.Scene.Camera.Position,
                         Color = renderObject.Color
                     };
                     ctx.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,
@@ -113,7 +112,6 @@ public sealed class OpaquePass : IRenderPass
                     var textureFrag = new PushConstantBlocks.TextureFragmentBlock
                     {
                         TextureId = renderObject.TextureId.Value,
-                        CameraPosition = ctx.Scene.Camera.Position
                     };
 
                     ctx.CommandBuffer.PushConstants(pipeline.Layout, VkShaderStageFlags.FragmentBit,

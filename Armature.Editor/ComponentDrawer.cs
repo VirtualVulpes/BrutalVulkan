@@ -1,7 +1,7 @@
 using Armature.Scene;
 using Brutal.ImGuiApi;
 
-namespace BrutalVulkan.UI;
+namespace Armature.Editor;
 
 public delegate void RefAction<T>(ref T value);
 

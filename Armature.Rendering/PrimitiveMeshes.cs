@@ -1,7 +1,6 @@
-using Armature.Rendering;
 using Brutal.Numerics;
 
-namespace BrutalVulkan.Rendering.Meshes;
+namespace Armature.Rendering;
 
 public static class PrimitiveMeshes
 {

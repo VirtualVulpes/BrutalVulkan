@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Armature.Rendering;
 using Armature.Rendering.Passes;
-using Armature.SceneRendering;
 using Armature.Vulkan;
 using Brutal;
 using Brutal.VulkanApi;

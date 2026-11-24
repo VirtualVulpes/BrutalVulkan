@@ -1,6 +1,6 @@
 using Armature.Scene;
 
-namespace BrutalVulkan.UI;
+namespace Armature.Editor;
 
 public interface IComponentDrawer
 {

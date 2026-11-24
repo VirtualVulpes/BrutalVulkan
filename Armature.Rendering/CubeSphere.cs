@@ -1,8 +1,6 @@
-using Armature.Rendering;
-using Armature.Scene.Components;
 using Brutal.Numerics;
 
-namespace BrutalVulkan;
+namespace Armature.Rendering;
 
 public static class CubeSphere
 {

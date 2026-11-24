@@ -3,7 +3,7 @@ using Brutal.VulkanApi;
 
 namespace Armature.Rendering;
 
-public readonly struct RenderContext
+public sealed class RenderContext
 {
     public FrameResources FrameResources { get; init; }
 
@@ -12,6 +12,7 @@ public readonly struct RenderContext
     public VkImageView SwapchainImageView { get; init; }
     
     public VkDescriptorSet GlobalDescriptorSet { get; init; }
+    public VkDescriptorSet PerFrameDescriptorSet { get; set; }
 
     public Int32 FrameIndex { get; init; }
 

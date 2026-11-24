@@ -3,6 +3,7 @@ using Armature.Rendering.Passes;
 using Armature.Vulkan;
 using Brutal;
 using Brutal.GlfwApi;
+using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using CommunityToolkit.HighPerformance;
@@ -22,30 +23,27 @@ public sealed class Renderer : IDisposable
     private readonly GlfwWindow _window;
 
     private CoreDescriptors _coreDescriptors;
-    private MeshManager _meshManager;
-    private PipelineManager _pipelineManager;
 
     private readonly FrameResources[] _frameResources = new FrameResources[RenderConstants.MaxFramesInFlight];
     public RenderTargets Targets { get; private set; }
 
     public Swapchain Swapchain { get; }
 
-    private Boolean _isFramebufferResized;
-    private Int32 _frameIndex;
-
-    private readonly List<RenderItem> _renderItems = [];
-
+    private bool _isFramebufferResized;
+    private int _frameIndex;
+    
     private readonly List<(RenderPhase Phase, IRenderPass Pass)> _passes = [];
     private readonly List<IFrameListener> _listeners = [];
 
     public VkSampleCountFlags MsaaSamples { get; }
 
-    public Renderer(VulkanContext context, GlfwWindow window)
+    public Renderer(VulkanContext context, GlfwWindow window, CoreDescriptors coreDescriptors)
     {
         _context = context;
         _window = window;
+        _coreDescriptors = coreDescriptors;
 
-        MsaaSamples = (VkSampleCountFlags)Int32.Min(RenderConstants.DefaultMsaa, (Int32)GetMaxSampleCount());
+        MsaaSamples = (VkSampleCountFlags)int.Min(RenderConstants.DefaultMsaa, (int)GetMaxSampleCount());
 
         for (var i = 0; i < RenderConstants.MaxFramesInFlight; i++)
         {
@@ -67,19 +65,6 @@ public sealed class Renderer : IDisposable
         Targets = new RenderTargets(context.Allocator, Swapchain.SurfaceFormat.Format, Swapchain.Extent, MsaaSamples);
     }
 
-    public void Initialize(PipelineManager pipelineManager, CoreDescriptors coreDescriptors,
-        MeshManager meshManager)
-    {
-        _coreDescriptors = coreDescriptors;
-        _meshManager = meshManager;
-        _pipelineManager = pipelineManager;
-
-        AllocateDescriptorSets();
-
-        CreatePerFrameBuffers();
-        UpdateFrameDescriptors();
-    }
-
     public void AddPass(IRenderPass pass, RenderPhase phase)
     {
         var i = _passes.FindLastIndex(p => p.Phase <= phase) + 1;
@@ -88,111 +73,6 @@ public sealed class Renderer : IDisposable
     }
 
     public void AddListener(IFrameListener l) => _listeners.Add(l);
-
-    private void CreatePerFrameBuffers()
-    {
-        foreach (var r in _frameResources)
-        {
-            var lightBuffer = new BufferEx.CreateInfo
-            {
-                Name = "Lights Storage Buffer",
-                BufferSize = ByteSize.Of<UInt32>() * 4 + ByteSize.Of<GpuLight>() * RenderConstants.MaxLights,
-                BufferUsage = VkBufferUsageFlags.StorageBufferBit,
-                AllocRequiredProperties = VkMemoryPropertyFlags.HostVisibleBit | VkMemoryPropertyFlags.HostCoherentBit
-            };
-            r.LightsBuffer = _context.Device.CreateBuffer(lightBuffer);
-            r.LightsMemory = r.LightsBuffer.Map();
-
-            var cameraBuffer = new BufferEx.CreateInfo
-            {
-                Name = "Camera Buffer",
-                BufferSize = ByteSize.Of<GpuCamera>(),
-                BufferUsage = VkBufferUsageFlags.UniformBufferBit,
-                AllocRequiredProperties = VkMemoryPropertyFlags.HostVisibleBit | VkMemoryPropertyFlags.HostCoherentBit
-            };
-            r.CameraBuffer = _context.Device.CreateBuffer(cameraBuffer);
-            r.CameraMemory = r.CameraBuffer.Map();
-        }
-    }
-
-    private unsafe void UpdateLights(FrameResources r, ReadOnlySpan<GpuLight> lights)
-    {
-        if (lights.Length > RenderConstants.MaxLights)
-            throw new ArgumentOutOfRangeException(nameof(lights));
-
-        var count = lights.Length;
-
-        Buffer.MemoryCopy(
-            &count,
-            r.LightsMemory.MapPtr.Pointer,
-            ByteSize.Of<UInt32>() * 4 + ByteSize.Of<GpuLight>() * RenderConstants.MaxLights,
-            ByteSize.Of<UInt32>()
-        );
-
-        fixed (GpuLight* lightsPtr = lights)
-        {
-            Buffer.MemoryCopy(
-                lightsPtr,
-                (Byte*)r.LightsMemory.MapPtr.Pointer + ByteSize.Of<UInt32>() * 4,
-                ByteSize.Of<GpuLight>() * RenderConstants.MaxLights,
-                ByteSize.Of<GpuLight>() * lights.Length
-            );
-        }
-    }
-
-    private unsafe void UpdateCamera(FrameResources r, GpuCamera camera)
-    {
-        Buffer.MemoryCopy(
-            &camera,
-            r.CameraMemory.MapPtr.Pointer,
-            ByteSize.Of<GpuCamera>(),
-            ByteSize.Of<GpuCamera>()
-        );
-    }
-
-    private unsafe void UpdateFrameDescriptors()
-    {
-        foreach (var r in _frameResources)
-        {
-            var lightsInfo = new VkDescriptorBufferInfo
-            {
-                Buffer = r.LightsBuffer.VkBuffer,
-                Offset = ByteSize.Zero,
-                Range = ByteSize.Of<UInt32>() * 4 + ByteSize.Of<GpuLight>() * RenderConstants.MaxLights
-            };
-
-            var cameraInfo = new VkDescriptorBufferInfo
-            {
-                Buffer = r.CameraBuffer.VkBuffer,
-                Offset = ByteSize.Zero,
-                Range = ByteSize.Of<GpuCamera>()
-            };
-
-            ReadOnlySpan<VkWriteDescriptorSet> descriptorWrites =
-            [
-                new()
-                {
-                    DstSet = r.PerFrameDescriptorSet,
-                    DstBinding = 0,
-                    DstArrayElement = 0,
-                    DescriptorCount = 1,
-                    DescriptorType = VkDescriptorType.StorageBuffer,
-                    BufferInfo = &lightsInfo
-                },
-                new()
-                {
-                    DstSet = r.PerFrameDescriptorSet,
-                    DstBinding = 1,
-                    DstArrayElement = 0,
-                    DescriptorCount = 1,
-                    DescriptorType = VkDescriptorType.UniformBuffer,
-                    BufferInfo = &cameraInfo
-                }
-            ];
-
-            _context.Device.UpdateDescriptorSets(descriptorWrites, null);
-        }
-    }
 
     private void RecreateSwapchain()
     {
@@ -217,14 +97,6 @@ public sealed class Renderer : IDisposable
         foreach (var l in _listeners) l.OnResize(Targets);
     }
 
-    private void AllocateDescriptorSets()
-    {
-        foreach (var r in _frameResources)
-        {
-            r.PerFrameDescriptorSet = _coreDescriptors.AllocatePerFrameDescriptorSet();
-        }
-    }
-
     private void NotifyTargetsRecreated()
     {
         foreach (var (_, pass) in _passes)
@@ -239,23 +111,23 @@ public sealed class Renderer : IDisposable
 
         foreach (var c in SampleCounts)
         {
-            if ((Int32)(counts & c) != 0) return c;
+            if ((int)(counts & c) != 0) return c;
         }
 
         return VkSampleCountFlags._1Bit;
     }
 
-    public void DrawFrame(SceneData scene)
+    public void DrawFrame(ReadOnlySpan<RenderItem> items, float4x4 viewProj)
     {
         if (!BeginFrame(out var imageIndex, out var isSuboptimal)) return;
-        RecordFrame(imageIndex, scene);
+        RecordFrame(imageIndex, items, viewProj);
         SubmitFrame(imageIndex);
         PresentFrame(imageIndex, isSuboptimal);
 
         _frameIndex = (_frameIndex + 1) % RenderConstants.MaxFramesInFlight;
     }
 
-    private Boolean BeginFrame(out Int32 imageIndex, out Boolean isSuboptimal)
+    private bool BeginFrame(out int imageIndex, out bool isSuboptimal)
     {
         _context.Device.WaitForFence(_frameResources[_frameIndex].Fence, -1);
 
@@ -284,7 +156,7 @@ public sealed class Renderer : IDisposable
         return true;
     }
 
-    private void RecordFrame(Int32 imageIndex, SceneData scene)
+    private void RecordFrame(int imageIndex, ReadOnlySpan<RenderItem> items, float4x4 viewProj)
     {
         var r = _frameResources[_frameIndex];
 
@@ -295,7 +167,7 @@ public sealed class Renderer : IDisposable
             SwapchainImageView = Swapchain.ImageView(imageIndex),
             GlobalDescriptorSet = _coreDescriptors.GlobalSet,
             FrameIndex = _frameIndex,
-            Scene = scene
+            ViewProj = viewProj
         };
 
         r.CommandBuffer.Begin(VkCommandBufferUsageFlags.OneTimeSubmitBit);
@@ -312,30 +184,7 @@ public sealed class Renderer : IDisposable
             r.CommandBuffer
         );
 
-        foreach (var l in _listeners) l.OnPrepare(context);
-
-        _renderItems.Clear();
-        foreach (var o in scene.ObjectSpan)
-        {
-            _renderItems.Add(new RenderItem
-                {
-                    Pipeline = _pipelineManager.GetPipeline((PipelineId)o.PipelineId),
-                    GpuMesh = _meshManager.GetGpuMesh(o.MeshId),
-                    ModelMatrix = o.ModelMatrix,
-                    TextureId = o.TextureId,
-                    Color = o.Color,
-                    DataType = o.DataType,
-                    Flags = o.Flags,
-                    ItemId = o.ObjectId
-                }
-            );
-        }
-
-        var items = _renderItems.AsSpan();
-
-        UpdateLights(r, scene.LightSpan);
-        UpdateCamera(r, scene.Camera);
-
+        foreach (var l in _listeners) l.OnPrepare(ref context);
         
         foreach (var (_, pass) in _passes)
         {
@@ -359,7 +208,7 @@ public sealed class Renderer : IDisposable
         r.CommandBuffer.End();
     }
 
-    private void SubmitFrame(Int32 imageIndex)
+    private void SubmitFrame(int imageIndex)
     {
         var r = _frameResources[_frameIndex];
 
@@ -374,7 +223,7 @@ public sealed class Renderer : IDisposable
         );
     }
 
-    private unsafe void PresentFrame(Int32 imageIndex, Boolean isSuboptimal)
+    private unsafe void PresentFrame(int imageIndex, bool isSuboptimal)
     {
         var swapchain = Swapchain.Handle;
         var signalSemaphore = Swapchain.RenderFinished(imageIndex);

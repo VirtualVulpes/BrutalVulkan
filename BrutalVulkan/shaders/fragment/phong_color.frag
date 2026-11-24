@@ -21,6 +21,17 @@ layout(std430, set = 1, binding = 0) readonly buffer LightBuffer
     GpuLight lights[]; 
 } lightBuffer;
 
+layout(set = 1, binding = 1, std140) uniform CameraBuffer 
+{
+    mat4 view;
+    mat4 proj;
+    mat4 viewProj;
+    mat4 invView;
+    mat4 invProj;
+    vec3 pos;
+    vec2 invViewport;
+} camera;
+
 layout(location = 0) in vec2 uv;
 layout(location = 1) in vec3 worldNormal;
 layout(location = 2) in vec3 worldPosition;
@@ -28,14 +39,13 @@ layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform FragmentPushConstants
 {
-    layout(offset = 128) vec3 cameraPosition;
-    vec3 color;
+    layout(offset = 128) vec3 color;
 } pc;
 
 void main()
 {
     vec3 N = normalize(worldNormal);
-    vec3 V = normalize(pc.cameraPosition - worldPosition);
+    vec3 V = normalize(camera.pos - worldPosition);
     
     vec3 albedo = pc.color;
 

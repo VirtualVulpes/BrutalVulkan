@@ -8,8 +8,10 @@
     <ItemGroup>
         <PackageReference Include="Ahwoo.BRUTAL.Core" Version="2026.10.4"/>
         <PackageReference Include="Ahwoo.BRUTAL.Numerics" Version="2026.10.2"/>
+        <PackageReference Include="Ahwoo.BRUTAL.ImGui" Version="2026.10.3"/>
         <ProjectReference Include="..\Armature.Vulkan\Armature.Vulkan.csproj"/>
         <ProjectReference Include="..\Armature.Rendering\Armature.Rendering.csproj"/>
-        <ProjectReference Include="..\BrutalVulkan\BrutalVulkan.csproj" />
+        <ProjectReference Include="..\Armature.Input\Armature.Input.csproj"/>
+        <ProjectReference Include="..\Armature.Scene\Armature.Scene.csproj"/>
     </ItemGroup>
 </Project>

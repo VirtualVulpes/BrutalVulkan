@@ -1,7 +1,7 @@
 using Brutal.GlfwApi;
 using Brutal.ImGuiApi;
 
-namespace BrutalVulkan.Utility;
+namespace Armature.DebugUi;
 
 public static class GlfwImGuiTranslation
 {
