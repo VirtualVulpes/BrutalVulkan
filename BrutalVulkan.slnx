@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="Armature.Core/Armature.Core.csproj" />
+  <Project Path="Armature.Editor/Armature.Editor.csproj" />
   <Project Path="Armature.Generators\Armature.Generators.csproj" />
   <Project Path="Armature.Input/Armature.Input.csproj" />
   <Project Path="Armature.Rendering/Armature.Rendering.csproj" />

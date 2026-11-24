@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Ahwoo.BRUTAL.Core" Version="2026.10.4"/>
+        <PackageReference Include="Ahwoo.BRUTAL.Numerics" Version="2026.10.2"/>
+        <ProjectReference Include="..\Armature.Vulkan\Armature.Vulkan.csproj"/>
+        <ProjectReference Include="..\Armature.Rendering\Armature.Rendering.csproj"/>
+        <ProjectReference Include="..\BrutalVulkan\BrutalVulkan.csproj" />
+    </ItemGroup>
+</Project>

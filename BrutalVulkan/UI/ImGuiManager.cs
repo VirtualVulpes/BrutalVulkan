@@ -1,5 +1,8 @@
 using Armature.Core;
 using Armature.Input;
+using Armature.Rendering;
+using Armature.Rendering.Pipelines;
+using Armature.SceneRendering;
 using Armature.Vulkan;
 using Brutal;
 using Brutal.GlfwApi;
@@ -10,7 +13,6 @@ using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
 using Brutal.VulkanApi.Vma;
 using BrutalVulkan.Rendering;
-using BrutalVulkan.Rendering.Pipelines;
 using BrutalVulkan.Utility;
 
 namespace BrutalVulkan.UI;

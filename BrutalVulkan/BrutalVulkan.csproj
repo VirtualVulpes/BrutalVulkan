@@ -29,7 +29,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Folder Include="Input\" />
         <Folder Include="models\"/>
+        <Folder Include="SceneRendering\" />
         <Folder Include="textures\"/>
     </ItemGroup>
 
@@ -77,5 +79,6 @@
         <ProjectReference Include="..\Armature.Input\Armature.Input.csproj" />
         <ProjectReference Include="..\Armature.Scene\Armature.Scene.csproj" />
         <ProjectReference Include="..\Armature.SceneRendering\Armature.SceneRendering.csproj" />
+        <ProjectReference Include="..\Armature.Editor\Armature.Editor.csproj" />
     </ItemGroup>
 </Project>

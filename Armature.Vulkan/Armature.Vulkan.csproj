@@ -14,6 +14,7 @@
         <PackageReference Include="Ahwoo.BRUTAL.Vulkan.Vma" Version="2026.10.3"/>
         <PackageReference Include="Ahwoo.BRUTAL.Ktx" Version="2026.10.2"/>
         <PackageReference Include="Ahwoo.BRUTAL.ShaderC" Version="2026.10.3"/>
+        <PackageReference Include="Ahwoo.BRUTAL.Glfw" Version="2026.10.4"/>
     </ItemGroup>
 
 </Project>
